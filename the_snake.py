@@ -45,7 +45,7 @@ class GameObject(ABC):
     яблоко и змейку
     """
 
-    def __init__(self, body_color,
+    def __init__(self, body_color=(255, 255, 255),
                  position=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)):
         self.body_color = body_color
         self.position = position
