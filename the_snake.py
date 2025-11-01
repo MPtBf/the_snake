@@ -1,5 +1,4 @@
 from random import randint
-from abc import ABC, abstractmethod
 import pygame
 
 # Константы для размеров поля и сетки:
@@ -39,18 +38,17 @@ pygame.display.set_caption('Змейка')
 clock = pygame.time.Clock()
 
 
-class GameObject(ABC):
+class GameObject:
     """
     Родительский класс для того, чтобы наследовать из него
     яблоко и змейку
     """
 
-    def __init__(self, body_color=(255, 255, 255),
+    def __init__(self, body_color=None,
                  position=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)):
         self.body_color = body_color
         self.position = position
 
-    @abstractmethod
     def draw(self):
         """Метод для рисовки объекта"""
         pass
