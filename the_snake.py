@@ -1,4 +1,5 @@
-from random import randint
+import json
+from random import choice
 import pygame
 
 # Константы для размеров поля и сетки:
@@ -16,8 +17,15 @@ RIGHT = (1, 0)
 # Цвет фона - черный:
 BOARD_BACKGROUND_COLOR = (0, 0, 0)
 
+
 # Цвет границы ячейки
-BORDER_COLOR = (93, 216, 228)
+def get_border_color(color) -> list[int]:
+    """
+    Рассчитать цвет края для ячейки данного цвета
+    :return: цвет края, немного затемнённый
+    """
+    return [int(c * 0.67) for c in color]
+
 
 # Цвет яблока
 APPLE_COLOR = (255, 0, 0)
@@ -32,10 +40,18 @@ SPEED = 10
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), 0, 32)
 
 # Заголовок окна игрового поля:
-pygame.display.set_caption('Змейка')
+GAME_TITLE = 'Змейка!'
+pygame.display.set_caption(GAME_TITLE)
 
 # Настройка времени:
 clock = pygame.time.Clock()
+
+KEY_TO_DIRECTION = {
+    pygame.K_UP: UP,
+    pygame.K_RIGHT: RIGHT,
+    pygame.K_DOWN: DOWN,
+    pygame.K_LEFT: LEFT,
+}
 
 
 class GameObject:
@@ -53,6 +69,21 @@ class GameObject:
         """Метод для рисовки объекта"""
         pass
 
+    def draw_single_tile(self, position=None, color=None):
+        """
+        Функция для отрисовки единственной клетки объекта. Объекты могу
+        состоять из нескольких клеток и использовать эту функцию для
+        отрисовки всех
+        """
+        if position is None:
+            position = self.position
+        if color is None:
+            color = self.body_color
+
+        rect = pygame.Rect(position, (GRID_SIZE, GRID_SIZE))
+        pygame.draw.rect(screen, color, rect)
+        pygame.draw.rect(screen, get_border_color(color), rect, 1)
+
 
 class Apple(GameObject):
     """Класс яблока, такие яблоки будет кушать змейка"""
@@ -61,19 +92,18 @@ class Apple(GameObject):
         super().__init__(APPLE_COLOR)
         self.randomize_position()
 
-    def randomize_position(self):
+    def randomize_position(self, forbidden_positions=()):
         """Метод для выставления случайной позиции яблока на поле"""
-        rand_position = (
-            randint(0, GRID_WIDTH - 1) * GRID_SIZE,
-            randint(0, GRID_HEIGHT - 1) * GRID_SIZE,
-        )
-        self.position = rand_position
+        all_cells = set((x * GRID_SIZE, y * GRID_SIZE)
+                        for x in range(GRID_WIDTH)
+                        for y in range(GRID_HEIGHT))
+        rand_cell = choice(tuple(all_cells - set(forbidden_positions)))
+
+        self.position = rand_cell
 
     def draw(self):
         """Метод для рисовки яблока"""
-        rect = pygame.Rect(self.position, (GRID_SIZE, GRID_SIZE))
-        pygame.draw.rect(screen, self.body_color, rect)
-        pygame.draw.rect(screen, BORDER_COLOR, rect, 1)
+        self.draw_single_tile()
 
 
 class Snake(GameObject):
@@ -112,9 +142,7 @@ class Snake(GameObject):
     def draw(self):
         """Метод для отрисовки змейки"""
         for position in self.positions:
-            rect = pygame.Rect(position, (GRID_SIZE, GRID_SIZE))
-            pygame.draw.rect(screen, self.body_color, rect)
-            pygame.draw.rect(screen, BORDER_COLOR, rect, 1)
+            self.draw_single_tile(position)
 
     def get_head_position(self) -> tuple[int, int]:
         """
@@ -144,12 +172,46 @@ def handle_keys(game_object):
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_UP and game_object.direction != DOWN:
                 game_object.next_direction = UP
-            elif event.key == pygame.K_DOWN and game_object.direction != UP:
-                game_object.next_direction = DOWN
-            elif event.key == pygame.K_LEFT and game_object.direction != RIGHT:
-                game_object.next_direction = LEFT
-            elif event.key == pygame.K_RIGHT and game_object.direction != LEFT:
-                game_object.next_direction = RIGHT
+
+            next_direction = KEY_TO_DIRECTION.get(event.key)
+            if next_direction is not None:
+
+                # чек если попытка двигаться в противоположном направлении
+                directions = list(KEY_TO_DIRECTION.values())
+                cur_dir_index = directions.index(next_direction)
+                opposite_dir_index = (cur_dir_index + 2) % 4
+                opposite_dir = directions[opposite_dir_index]
+
+                if game_object.direction != opposite_dir:
+                    game_object.next_direction = next_direction
+
+            if event.key == pygame.K_ESCAPE:
+                pygame.quit()
+                raise SystemExit
+
+
+def save_max_length(max_length) -> None:
+    """
+    Сохраняет длину в файл
+    :param: max_length: новая длина змейки для сохранения
+    """
+    with open('game_data.json', 'w', encoding='utf-8') as f:
+        json.dump({'max_length': max_length}, f)
+
+
+def load_max_length() -> int:
+    """
+    Загружает длину из файла
+    :return: int максимальная длина
+    """
+    with open('game_data.json', 'r', encoding='utf-8') as f:
+        data = json.load(f)
+        loaded_number = data.get('max_length')
+
+        if loaded_number is None:
+            loaded_number = 1
+
+        return loaded_number
 
 
 def main() -> None:
@@ -158,17 +220,34 @@ def main() -> None:
     snake = Snake()
     apple = Apple()
 
+    max_length = load_max_length()
+    last_max_length = max_length
+
     while True:
         clock.tick(SPEED)
         handle_keys(snake)
         snake.update_direction()
         snake.move()
 
+        # найти макс. длину
+        last_max_length = max_length
+        max_length = max(
+            max_length, len(snake.positions)
+        )
+        # сохранять только при изменении длины
+        if last_max_length != max_length:
+            save_max_length(max_length)
+
+            pygame.display.set_caption(
+                f'{GAME_TITLE} Рекордная длина: {max_length}'
+            )
+
         if snake.get_head_position() == apple.position:
-            apple.randomize_position()
+            apple.randomize_position(snake.positions)
             snake.is_apple_eaten = True
 
-        if snake.get_head_position() in snake.positions[1:]:
+        if (len(snake.positions) > 4
+                and snake.get_head_position() in snake.positions[1:]):
             snake.reset()
 
         screen.fill(BOARD_BACKGROUND_COLOR)
