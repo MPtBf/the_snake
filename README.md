@@ -60,19 +60,20 @@ The game saves your high score in `game_data.json` in the project directory.
 
 ### Bug Fixes & Improvements
 
-0. **Snake tail cutting on collision**
+0. **Improve the snake**
     - On collision with its tail Snake should not respawn, but lose the tail part that it collided with
+    - Ctrl to speed up
+    - Game over after losing too much tail (for example, from stone collision)
 
 1. **Fix bugs with stone collision**
-   - Ensure proper stopping and resuming behavior
-   - Fix edge cases with stone positioning
-   - Fix snake 180 rotation possibility while colliding with stone
+   - ✅ Ensure proper stopping and resuming behavior
+   - ✅ Fix edge cases with stone positioning
+   - ✅ Fix snake 180 rotation possibility while colliding with stone
 
 2. **Improve stone generation algorithm**
-   - Better distribution of stones across the game board
-   - Prevent stones from blocking too much of the playable area
-   - Fully randomize stone shape generation without hardcoding every state
-   - Make possible to easily change size of stone to generate
+   - ✅ Better distribution of stones across the game board
+   - ✅ Fully randomize stone shape generation without hardcoding every state
+   - ✅ Make possible to easily change size of stone to generate
 
 ### Visual Enhancements
 
