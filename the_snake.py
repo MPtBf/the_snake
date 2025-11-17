@@ -250,26 +250,51 @@ class Game:
 
     def spawnStoneCollisionParticles(
         self,
-        position: Tuple[int, int],
-        direction: Tuple[int, int],
+        stonePosition: Tuple[int, int],
+        snakeHeadPosition: Tuple[int, int],
     ) -> None:
         """
         Emit gray particles when the snake collides with a stone.
+        Particles fly from stone to snake head.
         """
 
+        # Calculate direction from stone to snake head
+        direction = self.calculateDirection(stonePosition, snakeHeadPosition)
+        
         options = ParticleOptions(
-            position=self.getCellCenter(position),
+            position=self.getCellCenter(stonePosition),
             amount=10,
             color=GameConfig.STONE_COLOR,
             sizeRange=(3, 6),
             lifetimeRange=(0.35, 0.6),
             speedRange=(90.0, 170.0),
-            direction=self.normalizeDirection(direction),
-            directionSpread=0.25,
+            direction=direction,
+            directionSpread=0.3,
             spawnSpread=4.0,
             shape="square",
         )
         self.particles.emit(options)
+    
+    def calculateDirection(
+        self,
+        fromPos: Tuple[int, int],
+        toPos: Tuple[int, int]
+    ) -> Tuple[float, float]:
+        """
+        Calculate normalized direction vector from one position to another.
+        """
+        dx = toPos[0] - fromPos[0]
+        dy = toPos[1] - fromPos[1]
+        # Handle wrapping
+        if abs(dx) > GameConfig.SCREEN_WIDTH // 2:
+            dx = dx - GameConfig.SCREEN_WIDTH if dx > 0 else dx + GameConfig.SCREEN_WIDTH
+        if abs(dy) > GameConfig.SCREEN_HEIGHT // 2:
+            dy = dy - GameConfig.SCREEN_HEIGHT if dy > 0 else dy + GameConfig.SCREEN_HEIGHT
+        
+        length = (dx * dx + dy * dy) ** 0.5
+        if length > 0:
+            return (dx / length, dy / length)
+        return (0.0, -1.0)
 
     def spawnTailCollisionParticles(
         self,
@@ -301,7 +326,11 @@ class Game:
     ) -> None:
         """
         Emit red particles when the snake eats an apple.
+        Particles fly out faster than snake speed.
         """
+        # Calculate base speed relative to snake speed (faster)
+        baseSpeed = GameConfig.SPEED * GameConfig.GRID_SIZE * self.speedMultiplier
+        particleSpeed = baseSpeed * 1.5  # 1.5x faster than snake
 
         options = ParticleOptions(
             position=self.getCellCenter(position),
@@ -309,10 +338,34 @@ class Game:
             color=GameConfig.APPLE_COLOR,
             sizeRange=(2, 4),
             lifetimeRange=(0.2, 0.45),
-            speedRange=(70.0, 140.0),
+            speedRange=(particleSpeed * 0.7, particleSpeed * 1.3),
             direction=self.normalizeDirection(direction),
             directionSpread=0.35,
             spawnSpread=2.0,
+            shape="circle",
+        )
+        self.particles.emit(options)
+    
+    def spawnTrailParticles(
+        self,
+        tailPosition: Tuple[int, int],
+    ) -> None:
+        """
+        Emit yellow trail particles behind the snake tail.
+        Only spawns when tail moves (not when growing).
+        """
+        from random import uniform
+        
+        options = ParticleOptions(
+            position=self.getCellCenter(tailPosition),
+            amount=3,
+            color=(255, 255, 0),  # Yellow
+            sizeRange=(1, 3),
+            lifetimeRange=(0.8, 1.2),  # Long lifetime
+            speedRange=(10.0, 30.0),  # Small random speed
+            direction=(0.0, 0.0),  # Random direction
+            directionSpread=2.0,  # Full random spread
+            spawnSpread=6.0,  # Randomized position
             shape="circle",
         )
         self.particles.emit(options)
@@ -341,11 +394,32 @@ class Game:
         hitStone: bool = nextHead in self.stonePositions
         wasStopped: bool = self.snake.isStopped
         self.snake.isStopped = hitStone
-        if hitStone and not wasStopped:
-            self.spawnStoneCollisionParticles(nextHead, self.snake.direction)
+        
+        # Spawn particles and trigger animation when hitting stone
+        if hitStone:
+            if not wasStopped:
+                # First collision - start twitch animation
+                self.snake.startTwitchAnimation(nextHead)
+            # Spawn particles every move when colliding
+            self.spawnStoneCollisionParticles(nextHead, self.snake.getHeadPosition())
+        
+        # Track tail position before move for trail particles
+        oldTailPos: Optional[Tuple[int, int]] = None
+        wasGrowing: bool = self.snake.isAppleEaten
+        if len(self.snake.positions) > 0:
+            oldTailPos = self.snake.positions[-1]
         
         # Move snake (will handle stopping internally)
         self.snake.move()
+        
+        # Spawn trail particles if tail moved (not when growing)
+        if (not wasGrowing and 
+            not self.snake.isStopped and
+            oldTailPos and 
+            len(self.snake.positions) > 0 and
+            self.snake.previousTailPosition and
+            self.snake.previousTailPosition != oldTailPos):
+            self.spawnTrailParticles(self.snake.previousTailPosition)
 
         if self.snake.isStopped and len(self.snake.positions) < GameConfig.INITIAL_SNAKE_LENGTH:
             self.triggerGameOver("Stone collision")
@@ -462,6 +536,21 @@ class Game:
                 # Stop accumulating movement while game is over
                 self.timeAccumulator = 0.0
 
+            # Update snake animation
+            if not self.isGameOver:
+                stonePos = None
+                if self.snake.isStopped and len(self.snake.positions) > 0:
+                    # Find stone position for twitch animation
+                    headX, headY = self.snake.getHeadPosition()
+                    dx, dy = self.snake.direction
+                    nextHead = (
+                        (headX + dx * GameConfig.GRID_SIZE) % GameConfig.SCREEN_WIDTH,
+                        (headY + dy * GameConfig.GRID_SIZE) % GameConfig.SCREEN_HEIGHT
+                    )
+                    if nextHead in self.stonePositions:
+                        stonePos = nextHead
+                self.snake.updateAnimation(deltaTime, stonePos)
+            
             # Update particles regardless of game state
             self.particles.update(deltaTime)
 

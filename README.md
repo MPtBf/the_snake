@@ -52,7 +52,7 @@ python the_snake.py
 ## Controls
 
 - **Arrow Keys** or **WASD**: Change snake direction
-- **Ctrl**: Temporarily accelerate up to 3× speed
+- **Ctrl**: Hold to smoothly accelerate up to 3× speed
 - **ESC**: Exit the game
 
 ## Game Data
@@ -82,17 +82,21 @@ The game saves your high score in `game_data.json` in the project directory.
 
 3. **Add particles**
    - ✅ Particle effects when snake eats apples
-   - Particle trails for snake movement
+   - ✅ Particle trails for snake movement (yellow trail particles)
    - ✅ Effect on collision with stone
    - ✅ Snake tail disappearing effect when the snake collides with it
-   - Apple consuming particles should fly out with the speed of snake movement
-   - Stone collision particles should appear every step snake tryes to move into the stone
-   - Stone collision particles should fly in the direction from the stone to snake head
+   - ✅ Apple consuming particles fly out faster than snake speed
+   - ✅ Stone collision particles appear every step when colliding
+   - ✅ Stone collision particles fly from stone to snake head
 
 4. **Add smooth animations and other visuals**
-   - Smooth snake movement transitions
+   - Jerky snake movement animation (head and tail snap to positions)
+   - ✅ Twitch animation when colliding with stones
+   - ✅ Animated tail shrinking when hitting stones
+   - Fix colliding with stones tail animation
+   - ✅ Animated tail growth when eating apples
+   - Fix animation of tail growth
    - Animated apple appearance/disappearance
-   - Animated snake tail disappearing in case of collision
 
 ### Game Features
 

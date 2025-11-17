@@ -54,6 +54,19 @@ class Snake(GameObject):
         self.nextDirection: Optional[Tuple[int, int]] = None
         self.isAppleEaten: bool = False
         self.isStopped: bool = False  # True when colliding with stone
+        
+        # Animation system - interpolated positions for jerky movement
+        self.renderPositions: List[Tuple[float, float]] = [
+            (float(pos[0]), float(pos[1])) for pos in self.positions
+        ]
+        self.animationTimers: List[float] = [0.0] * len(self.positions)
+        self.animationTypes: List[str] = ['idle'] * len(self.positions)  # 'idle', 'move', 'twitch', 'shrink', 'grow'
+        self.previousTailPosition: Optional[Tuple[int, int]] = None
+        self.isGrowing: bool = False
+        self.isShrinking: bool = False
+        self.twitchDirection: Optional[Tuple[int, int]] = None
+        # Track shrinking tail segments separately
+        self.shrinkingSegments: List[Tuple[Tuple[float, float], float, Tuple[int, int]]] = []  # (renderPos, timer, targetPos)
     
     @staticmethod
     def generateRandomStartPosition(
@@ -203,11 +216,30 @@ class Snake(GameObject):
         Wraps around screen edges. Grows if an apple was recently eaten.
         Snake stops when colliding with stones.
         """
+        # Track previous tail position for trail particles
+        if len(self.positions) > 0:
+            self.previousTailPosition = self.positions[-1]
+        
         # Don't move if stopped (colliding with stone)
         if self.isStopped:
             # Lose one tail cell per tick when stopped
             if len(self.positions) > 1:
+                # Start shrink animation for tail
+                tailPos = self.positions[-1]
+                targetPos = self.positions[-2] if len(self.positions) > 1 else tailPos
+                # Add to shrinking segments list
+                self.shrinkingSegments.append((
+                    (float(tailPos[0]), float(tailPos[1])),  # render position
+                    0.0,  # timer
+                    targetPos  # target position to animate to
+                ))
+                # Remove from positions
                 self.positions.pop()
+                # Remove corresponding animation data
+                if len(self.renderPositions) > len(self.positions):
+                    self.renderPositions.pop()
+                    self.animationTimers.pop()
+                    self.animationTypes.pop()
             return
         
         headX, headY = self.getHeadPosition()
@@ -219,13 +251,46 @@ class Snake(GameObject):
             (headY + dy * GameConfig.GRID_SIZE) % GameConfig.SCREEN_HEIGHT
         )
         
+        # Start move animation for head
+        if len(self.positions) > 0:
+            self.animationTimers[0] = 0.0
+            self.animationTypes[0] = 'move'
+            # Set render position to current position (will animate to new)
+            self.renderPositions[0] = (float(headX), float(headY))
+        
         # Add new head to positions
         self.positions.insert(0, newHead)
+        self.renderPositions.insert(0, (float(newHead[0]), float(newHead[1])))
+        self.animationTimers.insert(0, 0.0)
+        self.animationTypes.insert(0, 'move')
         
         # Remove tail if apple wasn't eaten
         if not self.isAppleEaten:
+            # Start move animation for tail before removing
+            if len(self.positions) > 1:
+                tailIdx = len(self.positions) - 1
+                if tailIdx < len(self.animationTimers):
+                    self.animationTimers[tailIdx] = 0.0
+                    self.animationTypes[tailIdx] = 'move'
             self.positions.pop()
+            self.renderPositions.pop()
+            self.animationTimers.pop()
+            self.animationTypes.pop()
         else:
+            # Growing - new tail segment animates from previous tail position
+            self.isGrowing = True
+            if len(self.positions) > 1:
+                tailIdx = len(self.positions) - 1
+                if tailIdx < len(self.renderPositions):
+                    # Start grow animation
+                    self.animationTimers[tailIdx] = 0.0
+                    self.animationTypes[tailIdx] = 'grow'
+                    # Set initial position to previous tail (will animate to new)
+                    if self.previousTailPosition:
+                        self.renderPositions[tailIdx] = (
+                            float(self.previousTailPosition[0]),
+                            float(self.previousTailPosition[1])
+                        )
             # Reset flag after growing
             self.isAppleEaten = False
     
@@ -258,15 +323,123 @@ class Snake(GameObject):
         # Apply brightness to color
         return tuple(int(c * brightness) for c in baseColor)
     
+    def updateAnimation(self, deltaTime: float, stonePosition: Optional[Tuple[int, int]] = None) -> None:
+        """
+        Update animation timers and interpolated positions for jerky movement.
+        
+        Args:
+            deltaTime: Time elapsed since last frame
+            stonePosition: Position of stone if colliding (for twitch animation)
+        """
+        # Update shrinking segments
+        aliveShrinking: List[Tuple[Tuple[float, float], float, Tuple[int, int]]] = []
+        for renderPos, timer, targetPos in self.shrinkingSegments:
+            timer += deltaTime
+            progress = min(1.0, timer / GameConfig.TAIL_SHRINK_ANIMATION_DURATION)
+            targetFloat = (float(targetPos[0]), float(targetPos[1]))
+            newRenderPos = (
+                renderPos[0] + (targetFloat[0] - renderPos[0]) * progress,
+                renderPos[1] + (targetFloat[1] - renderPos[1]) * progress
+            )
+            if progress < 1.0:
+                aliveShrinking.append((newRenderPos, timer, targetPos))
+        self.shrinkingSegments = aliveShrinking
+        
+        # Update all animation timers
+        for i in range(len(self.animationTimers)):
+            self.animationTimers[i] += deltaTime
+            
+            animType = self.animationTypes[i]
+            targetPos = (float(self.positions[i][0]), float(self.positions[i][1]))
+            currentRender = self.renderPositions[i]
+            
+            if animType == 'move':
+                # Quick movement animation
+                progress = min(1.0, self.animationTimers[i] / GameConfig.MOVE_ANIMATION_DURATION)
+                # Use ease-out curve for quick snap
+                easeProgress = 1.0 - (1.0 - progress) ** 3
+                self.renderPositions[i] = (
+                    currentRender[0] + (targetPos[0] - currentRender[0]) * easeProgress,
+                    currentRender[1] + (targetPos[1] - currentRender[1]) * easeProgress
+                )
+                if progress >= 1.0:
+                    self.animationTypes[i] = 'idle'
+                    self.renderPositions[i] = targetPos
+                    
+            elif animType == 'twitch' and stonePosition:
+                # Twitch toward stone
+                progress = min(1.0, self.animationTimers[i] / GameConfig.TWITCH_ANIMATION_DURATION)
+                twitchAmount = 3.0 * (1.0 - abs(progress - 0.5) * 2.0)  # Peak at middle
+                if self.twitchDirection:
+                    twitchX = self.twitchDirection[0] * twitchAmount
+                    twitchY = self.twitchDirection[1] * twitchAmount
+                    self.renderPositions[i] = (
+                        targetPos[0] + twitchX,
+                        targetPos[1] + twitchY
+                    )
+                if progress >= 1.0:
+                    self.animationTypes[i] = 'idle'
+                    self.renderPositions[i] = targetPos
+                    
+                    
+            elif animType == 'grow':
+                # New segment grows from previous tail position
+                progress = min(1.0, self.animationTimers[i] / GameConfig.GROW_ANIMATION_DURATION)
+                easeProgress = 1.0 - (1.0 - progress) ** 2
+                self.renderPositions[i] = (
+                    currentRender[0] + (targetPos[0] - currentRender[0]) * easeProgress,
+                    currentRender[1] + (targetPos[1] - currentRender[1]) * easeProgress
+                )
+                if progress >= 1.0:
+                    self.animationTypes[i] = 'idle'
+                    self.renderPositions[i] = targetPos
+                    self.isGrowing = False
+    
+    def startTwitchAnimation(self, stonePosition: Tuple[int, int]) -> None:
+        """
+        Start twitch animation for all segments when hitting stone.
+        
+        Args:
+            stonePosition: Position of the stone being hit
+        """
+        headPos = self.getHeadPosition()
+        # Calculate direction from head to stone
+        dx = stonePosition[0] - headPos[0]
+        dy = stonePosition[1] - headPos[1]
+        # Normalize
+        length = (dx * dx + dy * dy) ** 0.5
+        if length > 0:
+            self.twitchDirection = (dx / length, dy / length)
+        else:
+            self.twitchDirection = (0, -1)
+        
+        # Start twitch for all segments
+        for i in range(len(self.animationTimers)):
+            self.animationTimers[i] = 0.0
+            self.animationTypes[i] = 'twitch'
+    
     def draw(self) -> None:
         """
         Draw the entire snake by drawing each segment with gradient colors.
+        Uses interpolated positions for smooth animation.
         Draws eyes on the head.
         """
-        # Draw body segments with gradient colors
-        for index, position in enumerate(self.positions):
+        # Draw body segments with gradient colors using render positions
+        # Draw up to min of positions and renderPositions (in case of shrink animation)
+        drawCount = min(len(self.positions), len(self.renderPositions))
+        for index in range(drawCount):
+            renderPos = (int(self.renderPositions[index][0]), int(self.renderPositions[index][1]))
             segmentColor: Tuple[int, int, int] = self.getSegmentColor(index)
-            self.drawSingleTile(position, segmentColor)
+            self.drawSingleTile(renderPos, segmentColor)
+        
+        # Draw shrinking tail segments
+        for renderPos, timer, _ in self.shrinkingSegments:
+            progress = min(1.0, timer / GameConfig.TAIL_SHRINK_ANIMATION_DURATION)
+            fade = 1.0 - progress
+            tailColor = self.getSegmentColor(len(self.positions) - 1) if len(self.positions) > 0 else GameConfig.SNAKE_COLOR
+            fadedColor = tuple(int(c * fade) for c in tailColor)
+            pos = (int(renderPos[0]), int(renderPos[1]))
+            self.drawSingleTile(pos, fadedColor)
         
         # Draw eyes on the head
         self.drawEyes()
@@ -275,13 +448,15 @@ class Snake(GameObject):
         """
         Draw two black circles (eyes) on the front side of the snake's head.
         Eyes are positioned based on the snake's direction.
+        Uses interpolated head position for animation.
         """
-        if self.screen is None or len(self.positions) == 0:
+        if self.screen is None or len(self.positions) == 0 or len(self.renderPositions) == 0:
             return
         
-        headPos: Tuple[int, int] = self.getHeadPosition()
-        headCenterX: int = headPos[0] + GameConfig.GRID_SIZE // 2
-        headCenterY: int = headPos[1] + GameConfig.GRID_SIZE // 2
+        # Use render position for head
+        headRenderPos = self.renderPositions[0]
+        headCenterX: int = int(headRenderPos[0]) + GameConfig.GRID_SIZE // 2
+        headCenterY: int = int(headRenderPos[1]) + GameConfig.GRID_SIZE // 2
         
         # Eye size and offset
         eyeRadius: int = 3
@@ -352,6 +527,10 @@ class Snake(GameObject):
         """
         # Keep head and body up to (but not including) collision point
         self.positions = self.positions[:collisionIndex]
+        # Sync animation data
+        self.renderPositions = self.renderPositions[:collisionIndex]
+        self.animationTimers = self.animationTimers[:collisionIndex]
+        self.animationTypes = self.animationTypes[:collisionIndex]
     
     def reset(self, forbiddenPositions: Optional[Set[Tuple[int, int]]] = None) -> None:
         """
@@ -379,6 +558,15 @@ class Snake(GameObject):
         self.nextDirection = None
         self.isAppleEaten = False
         self.isStopped = False
+        # Reset animation data
+        self.renderPositions = [(float(pos[0]), float(pos[1])) for pos in self.positions]
+        self.animationTimers = [0.0] * len(self.positions)
+        self.animationTypes = ['idle'] * len(self.positions)
+        self.previousTailPosition = None
+        self.isGrowing = False
+        self.isShrinking = False
+        self.twitchDirection = None
+        self.shrinkingSegments = []
     
     def checkStoneCollision(self, stonePositions: Set[Tuple[int, int]]) -> bool:
         """
