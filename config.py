@@ -36,15 +36,18 @@ class GameConfig:
     
     # Game speed (cells per second)
     SPEED: float = 3.0  # 3 cells per second
+    MAX_SPEED_MULTIPLIER: float = 3.0
+    SPEED_ACCELERATION: float = 2.0  # multiplier per second while accelerating
+    SPEED_DECELERATION: float = 1.5  # multiplier per second while slowing down
     
     # Snake initial length
     INITIAL_SNAKE_LENGTH: int = 3
     
     # Stone configuration
-    MIN_STONES: int = 2
-    MAX_STONES: int = 3
+    MIN_STONES: int = 3
+    MAX_STONES: int = 7
     MIN_STONE_SIZE: int = 2  # Minimum width/height
-    MAX_STONE_SIZE: int = 3  # Maximum width/height
+    MAX_STONE_SIZE: int = 4  # Maximum width/height
     MIN_STONE_DISTANCE: int = 5  # Minimum distance between stones in cells
     
     # Game title

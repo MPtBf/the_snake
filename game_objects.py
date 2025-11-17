@@ -2,7 +2,7 @@
 Game objects: base class, apple, and stone.
 """
 
-from random import choice, randint
+from random import choice, randint, random
 from typing import Tuple, Optional, List, Set
 import pygame as pg
 from config import GameConfig
@@ -262,7 +262,7 @@ class Stone(GameObject):
             for existingStone in existingStones:
                 for stonePos in existingStone.positions:
                     stoneGridX: int = stonePos[0] // GameConfig.GRID_SIZE
-                    stoneGridY: int = stonePos[1] // GameConfig.GRID_HEIGHT
+                    stoneGridY: int = stonePos[1] // GameConfig.GRID_SIZE
                     
                     # Calculate distance (with wrapping)
                     distX: int = min(
@@ -294,8 +294,16 @@ class Stone(GameObject):
             # Randomly decide which cells in the grid to fill
             for offsetX in range(stoneWidth):
                 for offsetY in range(stoneHeight):
-                    # Randomly include this cell (50% chance, but ensure at least 2 cells)
-                    if randint(0, 1) == 1 or len(stonePositions) < 2:
+                    # Random inclusion chance with bias to inner cells for larger stones
+                    includeChance: float = 0.5
+                    isLargeStone: bool = stoneWidth >= 3 and stoneHeight >= 3
+                    isInnerCell: bool = (
+                        0 < offsetX < stoneWidth - 1 and
+                        0 < offsetY < stoneHeight - 1
+                    )
+                    if isLargeStone:
+                        includeChance = 0.9 if isInnerCell else 0.5
+                    if random() < includeChance or len(stonePositions) < 2:
                         gridX: int = (startGridX + offsetX) % GameConfig.GRID_WIDTH
                         gridY: int = (startGridY + offsetY) % GameConfig.GRID_HEIGHT
                         

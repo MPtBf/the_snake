@@ -5,10 +5,13 @@ A classic snake game implementation using Pygame.
 
 from random import randint
 from typing import Tuple, Optional, List, Dict, Set
+
 import pygame as pg
+
 from config import GameConfig
 from game_data import GameDataManager
 from game_objects import Apple, Stone
+from particles import ParticleOptions, ParticleSystem
 from snake import Snake
 
 
@@ -60,6 +63,14 @@ class Game:
         self.keyToDirection: Dict[int, Tuple[int, int]] = (
             GameConfig.getKeyToDirectionMapping()
         )
+        self.particles: ParticleSystem = ParticleSystem()
+        self.isAccelerating: bool = False
+        self.speedMultiplier: float = 1.0
+        self.timeAccumulator: float = 0.0
+        self.isGameOver: bool = False
+        self.gameOverReason: str = ""
+        self.gameOverFont: pg.font.Font = pg.font.SysFont("arial", 42)
+        self.subTextFont: pg.font.Font = pg.font.SysFont("arial", 24)
     
     def generateStones(self) -> List[Stone]:
         """
@@ -120,11 +131,16 @@ class Game:
                 return False
             
             elif event.type == pg.KEYDOWN:
+                if event.key in (pg.K_LCTRL, pg.K_RCTRL):
+                    self.isAccelerating = True
+                    continue
                 # Handle escape key
                 if event.key == pg.K_ESCAPE:
                     return False
                 
                 # Handle direction keys
+                if self.isGameOver:
+                    continue
                 nextDirection: Optional[Tuple[int, int]] = (
                     self.keyToDirection.get(event.key)
                 )
@@ -136,6 +152,10 @@ class Game:
                         nextDirection
                     ):
                         self.snake.nextDirection = nextDirection
+
+            elif event.type == pg.KEYUP:
+                if event.key in (pg.K_LCTRL, pg.K_RCTRL):
+                    self.isAccelerating = False
         
         return True
     
@@ -166,12 +186,145 @@ class Game:
         oppositeDirection: Tuple[int, int] = directions[oppositeIndex]
         
         return newDirection == oppositeDirection
+
+    def updateSpeed(self, deltaTime: float) -> None:
+        """
+        Smoothly adjust the snake movement speed based on acceleration state.
+        """
+
+        target = (
+            GameConfig.MAX_SPEED_MULTIPLIER
+            if self.isAccelerating
+            else 1.0
+        )
+        rate = (
+            GameConfig.SPEED_ACCELERATION
+            if self.isAccelerating
+            else GameConfig.SPEED_DECELERATION
+        )
+        if self.speedMultiplier < target:
+            self.speedMultiplier = min(
+                target, self.speedMultiplier + rate * deltaTime
+            )
+        else:
+            self.speedMultiplier = max(
+                target, self.speedMultiplier - rate * deltaTime
+            )
+
+    def triggerGameOver(self, reason: str) -> None:
+        """
+        Stop the game loop and show the Game Over message.
+        """
+
+        if self.isGameOver:
+            return
+        self.isGameOver = True
+        self.gameOverReason = reason
+        pg.display.set_caption(
+            f"{GameConfig.GAME_TITLE} - Game Over"
+        )
+
+    @staticmethod
+    def getCellCenter(position: Tuple[int, int]) -> Tuple[float, float]:
+        """
+        Calculate the pixel coordinates at the center of a grid cell.
+        """
+
+        return (
+            position[0] + GameConfig.GRID_SIZE / 2,
+            position[1] + GameConfig.GRID_SIZE / 2,
+        )
+
+    @staticmethod
+    def normalizeDirection(direction: Tuple[int, int]) -> Tuple[float, float]:
+        """
+        Convert a grid direction tuple into a normalized vector.
+        """
+
+        vector = pg.Vector2(direction)
+        if vector.length_squared() == 0:
+            vector = pg.Vector2(0, -1)
+        else:
+            vector = vector.normalize()
+        return vector.x, vector.y
+
+    def spawnStoneCollisionParticles(
+        self,
+        position: Tuple[int, int],
+        direction: Tuple[int, int],
+    ) -> None:
+        """
+        Emit gray particles when the snake collides with a stone.
+        """
+
+        options = ParticleOptions(
+            position=self.getCellCenter(position),
+            amount=10,
+            color=GameConfig.STONE_COLOR,
+            sizeRange=(3, 6),
+            lifetimeRange=(0.35, 0.6),
+            speedRange=(90.0, 170.0),
+            direction=self.normalizeDirection(direction),
+            directionSpread=0.25,
+            spawnSpread=4.0,
+            shape="square",
+        )
+        self.particles.emit(options)
+
+    def spawnTailCollisionParticles(
+        self,
+        position: Tuple[int, int],
+        direction: Tuple[int, int],
+    ) -> None:
+        """
+        Emit dark green particles when the snake collides with itself.
+        """
+
+        options = ParticleOptions(
+            position=self.getCellCenter(position),
+            amount=12,
+            color=(0, 120, 0),
+            sizeRange=(2, 5),
+            lifetimeRange=(0.25, 0.55),
+            speedRange=(80.0, 150.0),
+            direction=self.normalizeDirection(direction),
+            directionSpread=0.4,
+            spawnSpread=3.0,
+            shape="circle",
+        )
+        self.particles.emit(options)
+
+    def spawnAppleParticles(
+        self,
+        position: Tuple[int, int],
+        direction: Tuple[int, int],
+    ) -> None:
+        """
+        Emit red particles when the snake eats an apple.
+        """
+
+        options = ParticleOptions(
+            position=self.getCellCenter(position),
+            amount=14,
+            color=GameConfig.APPLE_COLOR,
+            sizeRange=(2, 4),
+            lifetimeRange=(0.2, 0.45),
+            speedRange=(70.0, 140.0),
+            direction=self.normalizeDirection(direction),
+            directionSpread=0.35,
+            spawnSpread=2.0,
+            shape="circle",
+        )
+        self.particles.emit(options)
     
     def updateGameState(self) -> None:
         """
         Update all game objects and check for collisions.
         Handles apple eating, snake self-collision, and stone collisions.
         """
+        if self.isGameOver:
+            return
+
         # Update snake direction (pass stone positions to prevent 180 rotation)
         self.snake.updateDirection(self.stonePositions)
         
@@ -185,17 +338,22 @@ class Game:
         )
         
         # Check if next position is a stone
-        if nextHead in self.stonePositions:
-            self.snake.isStopped = True
-        else:
-            # Clear stopped flag if direction is now valid
-            self.snake.isStopped = False
+        hitStone: bool = nextHead in self.stonePositions
+        wasStopped: bool = self.snake.isStopped
+        self.snake.isStopped = hitStone
+        if hitStone and not wasStopped:
+            self.spawnStoneCollisionParticles(nextHead, self.snake.direction)
         
         # Move snake (will handle stopping internally)
         self.snake.move()
+
+        if self.snake.isStopped and len(self.snake.positions) < GameConfig.INITIAL_SNAKE_LENGTH:
+            self.triggerGameOver("Stone collision")
+            return
         
         # Check if snake ate the apple
         if self.snake.getHeadPosition() == self.apple.position:
+            self.spawnAppleParticles(self.snake.getHeadPosition(), self.snake.direction)
             self.snake.eatApple()
             self.apple.randomizePosition(
                 forbiddenPositions=self.snake.positions,
@@ -205,6 +363,10 @@ class Game:
         # Check for self-collision and cut tail instead of resetting
         collisionIndex: Optional[int] = self.snake.checkSelfCollision()
         if collisionIndex is not None:
+            self.spawnTailCollisionParticles(
+                self.snake.getHeadPosition(),
+                self.snake.direction,
+            )
             self.snake.cutTail(collisionIndex)
         
         # Update high score
@@ -229,35 +391,80 @@ class Game:
             stone.draw()
         self.apple.draw()
         self.snake.draw()
+        self.particles.draw(self.screen)
+
+        if self.isGameOver:
+            self.drawGameOverOverlay()
         
         # Update display
         pg.display.update()
+
+    def drawGameOverOverlay(self) -> None:
+        """
+        Render the Game Over text overlay.
+        """
+
+        overlay = pg.Surface(
+            (GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT), pg.SRCALPHA
+        )
+        overlay.fill((0, 0, 0, 160))
+        self.screen.blit(overlay, (0, 0))
+
+        title = self.gameOverFont.render("Game Over", True, (255, 255, 255))
+        reasonText = self.subTextFont.render(
+            self.gameOverReason or "Try again!",
+            True,
+            (200, 200, 200),
+        )
+        infoText = self.subTextFont.render(
+            "Close the game to restart.",
+            True,
+            (200, 200, 200),
+        )
+        centerX = GameConfig.SCREEN_WIDTH // 2
+        centerY = GameConfig.SCREEN_HEIGHT // 2
+        self.screen.blit(title, title.get_rect(center=(centerX, centerY - 20)))
+        self.screen.blit(
+            reasonText, reasonText.get_rect(center=(centerX, centerY + 20))
+        )
+        self.screen.blit(
+            infoText, infoText.get_rect(center=(centerX, centerY + 50))
+        )
     
     def run(self) -> None:
         """
         Main game loop.
         Runs until the player exits the game.
-        Speed is controlled to 3 cells per second.
+        Speed is controlled to 3 cells per second with acceleration support.
         """
         running: bool = True
-        # Calculate frame rate: 3 cells per second means we need to move
-        # every 1/3 seconds. With 60 FPS, that's 20 frames per move.
-        framesPerMove: int = int(60 / GameConfig.SPEED)
-        frameCounter: int = 0
-        
         while running:
-            # Control frame rate (60 FPS for smooth rendering)
-            self.clock.tick(60)
-            
+            deltaTime: float = self.clock.tick(60) / 1000.0
+
             # Handle input
             running = self.handleInput()
-            
-            # Update game state at the correct speed (3 cells per second)
-            frameCounter += 1
-            if frameCounter >= framesPerMove:
-                frameCounter = 0
-                self.updateGameState()
-            
+
+            # Update speed multiplier
+            self.updateSpeed(deltaTime)
+
+            if not self.isGameOver:
+                self.timeAccumulator += deltaTime
+                movementInterval = 1.0 / (
+                    GameConfig.SPEED * self.speedMultiplier
+                )
+                while (
+                    self.timeAccumulator >= movementInterval
+                    and not self.isGameOver
+                ):
+                    self.timeAccumulator -= movementInterval
+                    self.updateGameState()
+            else:
+                # Stop accumulating movement while game is over
+                self.timeAccumulator = 0.0
+
+            # Update particles regardless of game state
+            self.particles.update(deltaTime)
+
             # Render everything every frame for smooth visuals
             self.render()
         

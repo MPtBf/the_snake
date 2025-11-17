@@ -14,6 +14,7 @@ This Snake game is a fully object-oriented implementation that brings the classi
   - Snake with animated eyes that follow the direction of movement
   - Gradient color system: snake body has a brightness gradient that cycles from head to tail
   - Circular apples instead of square tiles
+  - Dynamic particle effects for stone crashes, tail cuts, and apple bites
 - **Smart Spawning**: Snake and apples spawn in random positions, avoiding stone obstacles
 - **High Score Tracking**: Persistent high score system that saves your best performance
 - **Dual Controls**: Support for both arrow keys and WASD keys
@@ -21,9 +22,10 @@ This Snake game is a fully object-oriented implementation that brings the classi
 ### Game Mechanics
 
 - **Snake Movement**: The snake moves at 3 cells per second with smooth rendering
+- **Acceleration**: Hold `Ctrl` to ease into a 3× speed boost and release to decelerate smoothly
 - **Initial Length**: Snake starts with 3 segments
-- **Stone Collisions**: When the snake hits a stone, it stops moving and loses one tail segment per game tick until the player changes direction
-- **Self-Collision**: Snake resets when it collides with its own body (requires at least 5 segments)
+- **Stone Collisions**: When the snake hits a stone, it stops, loses a tail segment each tick, spawns debris, and triggers a Game Over if its length drops below three segments
+- **Self-Collision**: The snake cuts its tail exactly at the collision cell, shrinking without a full reset and spawning debris
 - **Screen Wrapping**: Snake wraps around screen edges
 
 ### Technical Details
@@ -50,6 +52,7 @@ python the_snake.py
 ## Controls
 
 - **Arrow Keys** or **WASD**: Change snake direction
+- **Ctrl**: Temporarily accelerate up to 3× speed
 - **ESC**: Exit the game
 
 ## Game Data
@@ -61,9 +64,9 @@ The game saves your high score in `game_data.json` in the project directory.
 ### Bug Fixes & Improvements
 
 0. **Improve the snake**
-    - On collision with its tail Snake should not respawn, but lose the tail part that it collided with
-    - Ctrl to speed up
-    - Game over after losing too much tail (for example, from stone collision)
+    - ✅ On collision with its tail Snake should not respawn, but lose the tail part that it collided with
+    - ✅ Ctrl to speed up
+    - ✅ Game over after losing too much tail (for example, from stone collision)
 
 1. **Fix bugs with stone collision**
    - ✅ Ensure proper stopping and resuming behavior
@@ -78,14 +81,18 @@ The game saves your high score in `game_data.json` in the project directory.
 ### Visual Enhancements
 
 3. **Add particles**
-   - Particle effects when snake eats apples
+   - ✅ Particle effects when snake eats apples
    - Particle trails for snake movement
-   - Effect on collision with stone
-   - Snake tail disappearing effect when the snake collides with it
+   - ✅ Effect on collision with stone
+   - ✅ Snake tail disappearing effect when the snake collides with it
+   - Apple consuming particles should fly out with the speed of snake movement
+   - Stone collision particles should appear every step snake tryes to move into the stone
+   - Stone collision particles should fly in the direction from the stone to snake head
 
 4. **Add smooth animations and other visuals**
    - Smooth snake movement transitions
    - Animated apple appearance/disappearance
+   - Animated snake tail disappearing in case of collision
 
 ### Game Features
 
