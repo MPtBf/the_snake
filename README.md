@@ -59,63 +59,43 @@ python the_snake.py
 
 The game saves your high score in `game_data.json` in the project directory.
 
-## Future Plans
+## List of new game features
 
-### Bug Fixes & Improvements
+- **Wait for the "You've hit your usage limit" text to disappear**
+   - Waiting day 2
 
-0. **Improve the snake**
-    - ✅ On collision with its tail Snake should not respawn, but lose the tail part that it collided with
-    - ✅ Ctrl to speed up
-    - ✅ Game over after losing too much tail (for example, from stone collision)
+- **Improve the snake**
+   - Come up with new ideas
 
-1. **Fix bugs with stone collision**
-   - ✅ Ensure proper stopping and resuming behavior
-   - ✅ Fix edge cases with stone positioning
-   - ✅ Fix snake 180 rotation possibility while colliding with stone
+- **Add particles**
+   - Add tail disappearing particles
 
-2. **Improve stone generation algorithm**
-   - ✅ Better distribution of stones across the game board
-   - ✅ Fully randomize stone shape generation without hardcoding every state
-   - ✅ Make possible to easily change size of stone to generate
-
-### Visual Enhancements
-
-3. **Add particles**
-   - ✅ Particle effects when snake eats apples
-   - ✅ Particle trails for snake movement (yellow trail particles)
-   - ✅ Effect on collision with stone
-   - ✅ Snake tail cutting particles when the snake collides with it
-   - ✅ Apple consuming particles fly out faster than snake speed
-   - ✅ Stone collision particles fly from stone to snake head
-
-4. **Add smooth animations and other visuals**
-   - Jerky snake movement animation (head and tail snap to positions)
-   - ✅ Twitch animation when colliding with stones
-   - ✅ Animated tail shrinking when hitting stones
-   - Fix colliding with stones tail animation
-   - ✅ Animated tail growth when eating apples
-   - Fix animation of tail growth
+- **Add smooth animations and other visuals**
+   - Jerky smooth snake movement animation
+   - Twitch animation when colliding with stones
+   - Animated tail shrinking when hitting stones
+   - Animated tail growth when eating apples
    - Animated apple appearance/disappearance
 
 ### Game Features
 
-5. **Add game main menu**
+- **Add game main menu**
    - Start screen with game title
    - Options menu for settings
    - High score display
    - Game instructions
 
-6. **Add ability to select different game modes or maps**
+- **Add ability to select different game modes or maps**
    - ...
 
 ### Advanced Features
 
-7. **Add textures maybe?**
+- **Add textures maybe?**
    - Replace solid colors with sprite textures
    - Animated snake skin textures
    - Themed visual styles (nature, space, etc.)
 
-8. **Add multiplayer maybe?**
+- **Add multiplayer maybe?**
    - Local "multiplayer" with other snakes (bots)
    - Competitive mode
    - Cooperative mode
