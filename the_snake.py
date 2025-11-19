@@ -358,11 +358,11 @@ class Game:
         
         options = ParticleOptions(
             position=self.getCellCenter(tailPosition),
-            amount=3,
+            amount=8,
             color=(255, 255, 0),  # Yellow
             sizeRange=(1, 3),
             lifetimeRange=(0.8, 1.2),  # Long lifetime
-            speedRange=(10.0, 30.0),  # Small random speed
+            speedRange=(10.0, 20.0),  # Small random speed
             direction=(0.0, 0.0),  # Random direction
             directionSpread=2.0,  # Full random spread
             spawnSpread=6.0,  # Randomized position
@@ -417,8 +417,7 @@ class Game:
             not self.snake.isStopped and
             oldTailPos and 
             len(self.snake.positions) > 0 and
-            self.snake.previousTailPosition and
-            self.snake.previousTailPosition != oldTailPos):
+            self.snake.previousTailPosition):
             self.spawnTrailParticles(self.snake.previousTailPosition)
 
         if self.snake.isStopped and len(self.snake.positions) < GameConfig.INITIAL_SNAKE_LENGTH:

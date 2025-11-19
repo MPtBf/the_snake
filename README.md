@@ -84,9 +84,8 @@ The game saves your high score in `game_data.json` in the project directory.
    - ✅ Particle effects when snake eats apples
    - ✅ Particle trails for snake movement (yellow trail particles)
    - ✅ Effect on collision with stone
-   - ✅ Snake tail disappearing effect when the snake collides with it
+   - ✅ Snake tail cutting particles when the snake collides with it
    - ✅ Apple consuming particles fly out faster than snake speed
-   - ✅ Stone collision particles appear every step when colliding
    - ✅ Stone collision particles fly from stone to snake head
 
 4. **Add smooth animations and other visuals**
