@@ -62,7 +62,8 @@ The game saves your high score in `game_data.json` in the project directory.
 ## List of new game features
 
 - **Wait for the "You've hit your usage limit" text to disappear**
-   - Waiting day 2
+   - Waiting day 3
+   - Planning to vibecode in GigaIDE or some other free IDE
 
 - **Improve the snake**
    - Come up with new ideas
@@ -76,6 +77,8 @@ The game saves your high score in `game_data.json` in the project directory.
    - Animated tail shrinking when hitting stones
    - Animated tail growth when eating apples
    - Animated apple appearance/disappearance
+
+   - Field edges wrap visibility to gain more control
 
 ### Game Features
 
