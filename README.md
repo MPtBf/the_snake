@@ -59,11 +59,9 @@ python the_snake.py
 
 The game saves your high score in `game_data.json` in the project directory.
 
-## List of new game features
 
-- **Wait for the "You've hit your usage limit" text to disappear**
-   - Waiting day 3
-   - Planning to vibecode in GigaIDE or some other free IDE
+
+## List of new game features
 
 - **Improve the snake**
    - Come up with new ideas
@@ -103,3 +101,11 @@ The game saves your high score in `game_data.json` in the project directory.
    - Competitive mode
    - Cooperative mode
    - Online multiplayer support
+
+## Recent Changes
+
+- **Smoother Snake Animation**: The snake head and body now interpolate between grid cells for noticeably smoother movement (fixed jerky teleport). Implemented in `snake.py` by setting the new head render position to the previous render position and animating it toward the new cell.
+
+- **Pause Menu**: Added a pause overlay that appears on game load and when pressing `Enter`. Resume by pressing any key. Implemented in `the_snake.py` with a new `isPaused` state and `drawPauseOverlay` method.
+
+These changes improve visual polish and provide a simple pause/start screen for the player.

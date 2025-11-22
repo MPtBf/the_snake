@@ -68,6 +68,8 @@ class Game:
         self.speedMultiplier: float = 1.0
         self.timeAccumulator: float = 0.0
         self.isGameOver: bool = False
+        # Pause state: start paused so main menu/overlay is shown on load
+        self.isPaused: bool = True
         self.gameOverReason: str = ""
         self.gameOverFont: pg.font.Font = pg.font.SysFont("arial", 42)
         self.subTextFont: pg.font.Font = pg.font.SysFont("arial", 24)
@@ -131,20 +133,36 @@ class Game:
                 return False
             
             elif event.type == pg.KEYDOWN:
+                # Open pause menu with ENTER
+                if event.key == pg.K_RETURN:
+                    self.isPaused = True
+                    continue
+
+                # If paused, any key (except ESC) resumes the game
+                if self.isPaused:
+                    if event.key == pg.K_ESCAPE:
+                        return False
+                    # Resume on any other key
+                    self.isPaused = False
+                    # Reset accumulator so movement timing is consistent
+                    self.timeAccumulator = 0.0
+                    continue
+
                 if event.key in (pg.K_LCTRL, pg.K_RCTRL):
                     self.isAccelerating = True
                     continue
+
                 # Handle escape key
                 if event.key == pg.K_ESCAPE:
                     return False
-                
+
                 # Handle direction keys
                 if self.isGameOver:
                     continue
                 nextDirection: Optional[Tuple[int, int]] = (
                     self.keyToDirection.get(event.key)
                 )
-                
+
                 if nextDirection is not None:
                     # Prevent moving in opposite direction
                     if not self.isOppositeDirection(
@@ -503,6 +521,29 @@ class Game:
         self.screen.blit(
             infoText, infoText.get_rect(center=(centerX, centerY + 50))
         )
+
+    def drawPauseOverlay(self) -> None:
+        """
+        Render the Pause overlay. Shown at startup and when the player presses Enter.
+        Press any key to resume.
+        """
+
+        overlay = pg.Surface(
+            (GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT), pg.SRCALPHA
+        )
+        overlay.fill((0, 0, 0, 200))
+        self.screen.blit(overlay, (0, 0))
+
+        title = self.gameOverFont.render(GameConfig.GAME_TITLE, True, (255, 255, 255))
+        infoText = self.subTextFont.render(
+            "Press any key to start / resume",
+            True,
+            (220, 220, 220),
+        )
+        centerX = GameConfig.SCREEN_WIDTH // 2
+        centerY = GameConfig.SCREEN_HEIGHT // 2
+        self.screen.blit(title, title.get_rect(center=(centerX, centerY - 20)))
+        self.screen.blit(infoText, infoText.get_rect(center=(centerX, centerY + 20)))
     
     def run(self) -> None:
         """
@@ -518,9 +559,11 @@ class Game:
             running = self.handleInput()
 
             # Update speed multiplier
-            self.updateSpeed(deltaTime)
+            # Only update speed while not paused
+            if not self.isPaused:
+                self.updateSpeed(deltaTime)
 
-            if not self.isGameOver:
+            if not self.isGameOver and not self.isPaused:
                 self.timeAccumulator += deltaTime
                 movementInterval = 1.0 / (
                     GameConfig.SPEED * self.speedMultiplier
@@ -532,11 +575,13 @@ class Game:
                     self.timeAccumulator -= movementInterval
                     self.updateGameState()
             else:
-                # Stop accumulating movement while game is over
-                self.timeAccumulator = 0.0
+                # When paused or game over, stop accumulating movement
+                if self.isPaused:
+                    self.timeAccumulator = 0.0
+            
 
-            # Update snake animation
-            if not self.isGameOver:
+            # Update snake animation (don't animate while paused or game over)
+            if not self.isGameOver and not self.isPaused:
                 stonePos = None
                 if self.snake.isStopped and len(self.snake.positions) > 0:
                     # Find stone position for twitch animation
@@ -550,11 +595,16 @@ class Game:
                         stonePos = nextHead
                 self.snake.updateAnimation(deltaTime, stonePos)
             
-            # Update particles regardless of game state
-            self.particles.update(deltaTime)
+            # Update particles only while not paused (pause freezes visuals)
+            if not self.isPaused:
+                self.particles.update(deltaTime)
 
             # Render everything every frame for smooth visuals
             self.render()
+
+            # If paused, draw pause overlay on top
+            if self.isPaused and not self.isGameOver:
+                self.drawPauseOverlay()
         
         # Cleanup
         pg.quit()

@@ -251,16 +251,20 @@ class Snake(GameObject):
             (headY + dy * GameConfig.GRID_SIZE) % GameConfig.SCREEN_HEIGHT
         )
         
-        # Start move animation for head
-        if len(self.positions) > 0:
-            self.animationTimers[0] = 0.0
-            self.animationTypes[0] = 'move'
-            # Set render position to current position (will animate to new)
-            self.renderPositions[0] = (float(headX), float(headY))
-        
-        # Add new head to positions
+        # Prepare render position for new head so it smoothly interpolates
+        # from the previous head position to the new head position.
+        # Use existing interpolated head position if available, otherwise
+        # fall back to the logical grid head position.
+        if len(self.renderPositions) > 0:
+            previousHeadRender = self.renderPositions[0]
+        else:
+            previousHeadRender = (float(headX), float(headY))
+
+        # Add new head to positions and set its render position to the
+        # previous head render so that updateAnimation will move it smoothly
+        # to the logical new head position.
         self.positions.insert(0, newHead)
-        self.renderPositions.insert(0, (float(newHead[0]), float(newHead[1])))
+        self.renderPositions.insert(0, (float(previousHeadRender[0]), float(previousHeadRender[1])))
         self.animationTimers.insert(0, 0.0)
         self.animationTypes.insert(0, 'move')
         
