@@ -102,6 +102,7 @@ The game saves your high score in `game_data.json` in the project directory.
    - Cooperative mode
    - Online multiplayer support
 
+
 ## Recent Changes
 
 - **Smoother Snake Animation**: The snake head and body now interpolate between grid cells for noticeably smoother movement (fixed jerky teleport). Implemented in `snake.py` by setting the new head render position to the previous render position and animating it toward the new cell.
