@@ -602,9 +602,10 @@ class Game:
             # Render everything every frame for smooth visuals
             self.render()
 
-            # If paused, draw pause overlay on top
+            # If paused, draw pause overlay on top and update display
             if self.isPaused and not self.isGameOver:
                 self.drawPauseOverlay()
+                pg.display.update()
         
         # Cleanup
         pg.quit()

@@ -219,6 +219,10 @@ class Snake(GameObject):
         # Track previous tail position for trail particles
         if len(self.positions) > 0:
             self.previousTailPosition = self.positions[-1]
+
+        # Remember previous render positions so we can start animations
+        # of all segments from their previous rendered locations.
+        prevRender: List[Tuple[float, float]] = list(self.renderPositions)
         
         # Don't move if stopped (colliding with stone)
         if self.isStopped:
@@ -251,35 +255,51 @@ class Snake(GameObject):
             (headY + dy * GameConfig.GRID_SIZE) % GameConfig.SCREEN_HEIGHT
         )
         
-        # Prepare render position for new head so it smoothly interpolates
-        # from the previous head position to the new head position.
-        # Use existing interpolated head position if available, otherwise
-        # fall back to the logical grid head position.
-        if len(self.renderPositions) > 0:
-            previousHeadRender = self.renderPositions[0]
-        else:
-            previousHeadRender = (float(headX), float(headY))
-
-        # Add new head to positions and set its render position to the
-        # previous head render so that updateAnimation will move it smoothly
-        # to the logical new head position.
+        # Add new head to logical positions
         self.positions.insert(0, newHead)
-        self.renderPositions.insert(0, (float(previousHeadRender[0]), float(previousHeadRender[1])))
-        self.animationTimers.insert(0, 0.0)
-        self.animationTypes.insert(0, 'move')
+
+        # Build new renderPositions so that every segment will animate
+        # from its previous rendered location to the new logical cell.
+        newRender: List[Tuple[float, float]] = []
+        # Head render starts from previous head render (if available)
+        if len(prevRender) > 0:
+            newRender.append((float(prevRender[0][0]), float(prevRender[0][1])))
+        else:
+            newRender.append((float(headX), float(headY)))
+
+        # For following segments, they should start from the previous
+        # segment's render position (shifted by one).
+        for i in range(1, len(self.positions)):
+            if i - 1 < len(prevRender):
+                newRender.append((float(prevRender[i - 1][0]), float(prevRender[i - 1][1])))
+            else:
+                # Fallback to logical position
+                newRender.append((float(self.positions[i][0]), float(self.positions[i][1])))
+
+        # Insert animation metadata for all segments
+        self.renderPositions = newRender
+        self.animationTimers = [0.0] * len(self.positions)
+        self.animationTypes = ['move'] * len(self.positions)
         
-        # Remove tail if apple wasn't eaten
+        # Remove tail if apple wasn't eaten. When removing we need to
+        # animate tail shrink separately so keep a shrinking segment.
         if not self.isAppleEaten:
-            # Start move animation for tail before removing
             if len(self.positions) > 1:
-                tailIdx = len(self.positions) - 1
-                if tailIdx < len(self.animationTimers):
-                    self.animationTimers[tailIdx] = 0.0
-                    self.animationTypes[tailIdx] = 'move'
+                tailPos = self.positions[-1]
+                # Store shrinking visual copy
+                targetPos = self.positions[-2] if len(self.positions) > 1 else tailPos
+                self.shrinkingSegments.append((
+                    (float(tailPos[0]), float(tailPos[1])),
+                    0.0,
+                    targetPos
+                ))
+            # Actually remove the last logical segment
             self.positions.pop()
-            self.renderPositions.pop()
-            self.animationTimers.pop()
-            self.animationTypes.pop()
+            # Also remove the render/animation metadata for the popped tail
+            if len(self.renderPositions) > len(self.positions):
+                self.renderPositions = self.renderPositions[:len(self.positions)]
+                self.animationTimers = self.animationTimers[:len(self.positions)]
+                self.animationTypes = self.animationTypes[:len(self.positions)]
         else:
             # Growing - new tail segment animates from previous tail position
             self.isGrowing = True
@@ -289,7 +309,7 @@ class Snake(GameObject):
                     # Start grow animation
                     self.animationTimers[tailIdx] = 0.0
                     self.animationTypes[tailIdx] = 'grow'
-                    # Set initial position to previous tail (will animate to new)
+                    # Set initial render to previous tail so it animates in
                     if self.previousTailPosition:
                         self.renderPositions[tailIdx] = (
                             float(self.previousTailPosition[0]),
@@ -362,12 +382,32 @@ class Snake(GameObject):
                 progress = min(1.0, self.animationTimers[i] / GameConfig.MOVE_ANIMATION_DURATION)
                 # Use ease-out curve for quick snap
                 easeProgress = 1.0 - (1.0 - progress) ** 3
-                self.renderPositions[i] = (
-                    currentRender[0] + (targetPos[0] - currentRender[0]) * easeProgress,
-                    currentRender[1] + (targetPos[1] - currentRender[1]) * easeProgress
-                )
+
+                # Compute delta taking wrapping into account so segments
+                # take the shortest path across edges.
+                dx = targetPos[0] - currentRender[0]
+                dy = targetPos[1] - currentRender[1]
+
+                # Adjust for horizontal wrapping
+                if abs(dx) > GameConfig.SCREEN_WIDTH / 2:
+                    if dx > 0:
+                        dx -= GameConfig.SCREEN_WIDTH
+                    else:
+                        dx += GameConfig.SCREEN_WIDTH
+
+                # Adjust for vertical wrapping
+                if abs(dy) > GameConfig.SCREEN_HEIGHT / 2:
+                    if dy > 0:
+                        dy -= GameConfig.SCREEN_HEIGHT
+                    else:
+                        dy += GameConfig.SCREEN_HEIGHT
+
+                newX = currentRender[0] + dx * easeProgress
+                newY = currentRender[1] + dy * easeProgress
+                self.renderPositions[i] = (newX, newY)
                 if progress >= 1.0:
                     self.animationTypes[i] = 'idle'
+                    # Ensure final position matches logical target exactly
                     self.renderPositions[i] = targetPos
                     
             elif animType == 'twitch' and stonePosition:

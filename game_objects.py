@@ -75,18 +75,20 @@ class GameObject:
         if color is None:
             raise ValueError("Color must be specified")
         
-        # Create rectangle for the tile
-        rect: pg.Rect = pg.Rect(
-            position,
-            (GameConfig.GRID_SIZE, GameConfig.GRID_SIZE)
-        )
-        
-        # Draw filled rectangle
-        pg.draw.rect(self.screen, color, rect)
-        
-        # Draw border with darker color
-        borderColor: Tuple[int, int, int] = GameConfig.getBorderColor(color)
-        pg.draw.rect(self.screen, borderColor, rect, 1)
+        # We'll draw the tile at multiple offsets to support wrapping
+        # (so a segment moving across the edge can appear on both sides).
+        screenRect: pg.Rect = self.screen.get_rect()
+        tileSize = (GameConfig.GRID_SIZE, GameConfig.GRID_SIZE)
+
+        for offsetX in (-GameConfig.SCREEN_WIDTH, 0, GameConfig.SCREEN_WIDTH):
+            for offsetY in (-GameConfig.SCREEN_HEIGHT, 0, GameConfig.SCREEN_HEIGHT):
+                drawPos = (position[0] + offsetX, position[1] + offsetY)
+                rect = pg.Rect(drawPos, tileSize)
+                # Only draw if visible on the screen
+                if rect.colliderect(screenRect):
+                    pg.draw.rect(self.screen, color, rect)
+                    borderColor: Tuple[int, int, int] = GameConfig.getBorderColor(color)
+                    pg.draw.rect(self.screen, borderColor, rect, 1)
 
 
 class Apple(GameObject):

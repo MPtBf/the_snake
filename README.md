@@ -70,13 +70,17 @@ The game saves your high score in `game_data.json` in the project directory.
    - Add tail disappearing particles
 
 - **Add smooth animations and other visuals**
-   - Jerky smooth snake movement animation
    - Twitch animation when colliding with stones
    - Animated tail shrinking when hitting stones
    - Animated tail growth when eating apples
    - Animated apple appearance/disappearance
-
    - Field edges wrap visibility to gain more control
+   - Fix snake smooth movement animation (snake body tiles are not moving except of head and last tail tile)
+   - Last tail segment is getting darker on move, but it should not
+   - Last tail segment is flying through the entire fiend, but it should not. It should move on edges like head segment.
+   - Snake loses its eyes when wrapping around edges.
+   - Pause menu sometimes blinks (dissapearing and quickly appearing again)
+   - Snake tail segments are drawn on top of the head segment, but snake head should have bigger z-index.
 
 ### Game Features
 
