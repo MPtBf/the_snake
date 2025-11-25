@@ -330,16 +330,20 @@ class Game:
         # Calculate direction from stone to snake head
         direction = self.calculateDirection(stonePosition, snakeHeadPosition)
         
+        sizeMin = max(1, int(GameConfig.GRID_SIZE * 0.12))
+        sizeMax = max(2, int(GameConfig.GRID_SIZE * 0.3))
+        speedMin = GameConfig.GRID_SIZE * 4.5
+        speedMax = GameConfig.GRID_SIZE * 8.5
         options = ParticleOptions(
             position=self.getCellCenter(stonePosition),
             amount=10,
             color=GameConfig.STONE_COLOR,
-            sizeRange=(3, 6),
+            sizeRange=(sizeMin, sizeMax),
             lifetimeRange=(0.35, 0.6),
-            speedRange=(90.0, 170.0),
+            speedRange=(speedMin, speedMax),
             direction=direction,
             directionSpread=0.3,
-            spawnSpread=4.0,
+            spawnSpread=max(2.0, GameConfig.GRID_SIZE * 0.2),
             shape="square",
         )
         self.particles.emit(options)
@@ -374,16 +378,19 @@ class Game:
         Emit dark green particles when the snake collides with itself.
         """
 
+        # Self-collision tail particles (use smaller sizes scaled to grid)
+        sizeMin = max(1, int(GameConfig.GRID_SIZE * 0.06))
+        sizeMax = max(2, int(GameConfig.GRID_SIZE * 0.16))
         options = ParticleOptions(
             position=self.getCellCenter(position),
             amount=12,
             color=(0, 120, 0),
-            sizeRange=(2, 5),
+            sizeRange=(sizeMin, sizeMax),
             lifetimeRange=(0.25, 0.55),
-            speedRange=(80.0, 150.0),
+            speedRange=(GameConfig.GRID_SIZE * 3.5, GameConfig.GRID_SIZE * 6.0),
             direction=self.normalizeDirection(direction),
             directionSpread=0.4,
-            spawnSpread=3.0,
+            spawnSpread=max(1.0, GameConfig.GRID_SIZE * 0.12),
             shape="circle",
         )
         self.particles.emit(options)
@@ -401,16 +408,19 @@ class Game:
         baseSpeed = GameConfig.SPEED * GameConfig.GRID_SIZE * self.speedMultiplier
         particleSpeed = baseSpeed * 1.5  # 1.5x faster than snake
 
+        sizeMin = max(1, int(GameConfig.GRID_SIZE * 0.08))
+        sizeMax = max(2, int(GameConfig.GRID_SIZE * 0.18))
+
         options = ParticleOptions(
             position=self.getCellCenter(position),
             amount=14,
             color=GameConfig.APPLE_COLOR,
-            sizeRange=(2, 4),
+            sizeRange=(sizeMin, sizeMax),
             lifetimeRange=(0.2, 0.45),
             speedRange=(particleSpeed * 0.7, particleSpeed * 1.3),
             direction=self.normalizeDirection(direction),
             directionSpread=0.35,
-            spawnSpread=2.0,
+            spawnSpread=max(1.0, GameConfig.GRID_SIZE * 0.08),
             shape="circle",
         )
         self.particles.emit(options)
@@ -419,16 +429,18 @@ class Game:
         """
         Emit subtle particles at the hinted apple position to guide the player.
         """
+        sizeMin = max(1, int(GameConfig.GRID_SIZE * 0.06))
+        sizeMax = max(1, int(GameConfig.GRID_SIZE * 0.14))
         options = ParticleOptions(
             position=self.getCellCenter(position),
-            amount=1,
+            amount=max(2, int(6 * GameConfig.GRID_SIZE / 20)),
             color=GameConfig.APPLE_COLOR,
-            sizeRange=(1, 2),
-            lifetimeRange=(0.05, 0.15),
-            speedRange=(0.0, 10.0),
+            sizeRange=(sizeMin, sizeMax),
+            lifetimeRange=(0.12, 0.3),
+            speedRange=(0.0, GameConfig.GRID_SIZE * 0.6),
             direction=(0.0, -1.0),
             directionSpread=1.5,
-            spawnSpread=4.0,
+            spawnSpread=max(2.0, GameConfig.GRID_SIZE * 0.25),
             shape="circle",
         )
         self.particles.emit(options)
@@ -443,16 +455,18 @@ class Game:
         """
         from random import uniform
         
+        sizeMin = max(1, int(GameConfig.GRID_SIZE * 0.04))
+        sizeMax = max(1, int(GameConfig.GRID_SIZE * 0.12))
         options = ParticleOptions(
             position=self.getCellCenter(tailPosition),
             amount=8,
             color=(255, 255, 0),  # Yellow
-            sizeRange=(1, 3),
-            lifetimeRange=(0.8, 1.2),  # Long lifetime
-            speedRange=(10.0, 20.0),  # Small random speed
+            sizeRange=(sizeMin, sizeMax),
+            lifetimeRange=(0.6, 1.2),  # Long lifetime
+            speedRange=(GameConfig.GRID_SIZE * 0.2, GameConfig.GRID_SIZE * 0.6),
             direction=(0.0, 0.0),  # Random direction
             directionSpread=2.0,  # Full random spread
-            spawnSpread=6.0,  # Randomized position
+            spawnSpread=max(2.0, GameConfig.GRID_SIZE * 0.25),  # Randomized position
             shape="circle",
         )
         self.particles.emit(options)

@@ -63,7 +63,6 @@ The game saves your high score in `game_data.json` in the project directory.
 ## List of new game features
 
 - **Improve the snake**
-   - Fix snake spawn directions bug (head should be rotated in the save direction as a tail, but now it seems like tail and head directions are chosen independently of each other)
    - Come up with new ideas
 
 - **Add smooth animations and other visuals**

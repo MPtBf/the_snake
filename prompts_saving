@@ -1,2 +1,1 @@
-1. If the grid size gets bigger or smaller, everything else remains with its default size and gets disproportionate. These elements are particles, snake eyes, grid borders and other stuff. Make that when the grid size gets bigger or smaller, everything else is getting properly proportional to it.
-
+1. Last tail segment is still flying over the entire field when snake wraps with field edges. Fix this

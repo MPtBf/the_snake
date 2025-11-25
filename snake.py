@@ -2,7 +2,7 @@
 Snake class implementation.
 """
 
-from random import choice, shuffle
+from random import choice
 from typing import Tuple, Optional, List, Set
 import pygame as pg
 from config import GameConfig
@@ -37,20 +37,11 @@ class Snake(GameObject):
         
         super().__init__(GameConfig.SNAKE_COLOR, initialPosition, screen)
         
-        # Generate initial snake body with length 3
-        self.positions: List[Tuple[int, int]] = self.generateInitialBody(
+        # Generate initial snake body with length 3 and set initial direction
+        self.positions, self.direction = self.generateInitialBody(
             initialPosition,
             forbiddenPositions
         )
-        
-        # Random initial direction
-        directions: List[Tuple[int, int]] = [
-            GameConfig.UP,
-            GameConfig.DOWN,
-            GameConfig.LEFT,
-            GameConfig.RIGHT
-        ]
-        self.direction: Tuple[int, int] = choice(directions)
         self.nextDirection: Optional[Tuple[int, int]] = None
         self.isAppleEaten: bool = False
         self.isStopped: bool = False  # True when colliding with stone
@@ -130,7 +121,7 @@ class Snake(GameObject):
     def generateInitialBody(
         startPosition: Tuple[int, int],
         forbiddenPositions: Set[Tuple[int, int]]
-    ) -> List[Tuple[int, int]]:
+    ) -> tuple:
         """
         Generate initial snake body with length 3.
         
@@ -141,43 +132,41 @@ class Snake(GameObject):
         Returns:
             List of positions forming the initial snake body
         """
-        positions: List[Tuple[int, int]] = [startPosition]
-        
-        # Try to generate body segments in a random direction
+        # Choose a single direction for the snake so the head and tail align.
         directions: List[Tuple[int, int]] = [
             GameConfig.UP,
             GameConfig.DOWN,
             GameConfig.LEFT,
             GameConfig.RIGHT
         ]
-        shuffle(directions)
-        
-        currentPos: Tuple[int, int] = startPosition
+        direction: Tuple[int, int] = choice(directions)
+
+        # Build body so that segments trail behind the head in the opposite
+        # direction of movement. This guarantees the head is facing the
+        # same direction as the rest of the body.
+        positions: List[Tuple[int, int]] = [startPosition]
+        dx, dy = direction
+        currentPos = startPosition
         for _ in range(GameConfig.INITIAL_SNAKE_LENGTH - 1):
-            found: bool = False
-            for dx, dy in directions:
-                nextPos: Tuple[int, int] = (
-                    (currentPos[0] + dx * GameConfig.GRID_SIZE) % GameConfig.SCREEN_WIDTH,
-                    (currentPos[1] + dy * GameConfig.GRID_SIZE) % GameConfig.SCREEN_HEIGHT
-                )
-                
-                if nextPos not in forbiddenPositions and nextPos not in positions:
-                    positions.append(nextPos)
-                    currentPos = nextPos
-                    found = True
-                    break
-            
-            if not found:
-                # If we can't find a valid position, just use a nearby one
-                dx, dy = directions[0]
-                nextPos = (
-                    (currentPos[0] + dx * GameConfig.GRID_SIZE) % GameConfig.SCREEN_WIDTH,
-                    (currentPos[1] + dy * GameConfig.GRID_SIZE) % GameConfig.SCREEN_HEIGHT
-                )
-                positions.append(nextPos)
-                currentPos = nextPos
-        
-        return positions
+            nextPos = (
+                (currentPos[0] - dx * GameConfig.GRID_SIZE) % GameConfig.SCREEN_WIDTH,
+                (currentPos[1] - dy * GameConfig.GRID_SIZE) % GameConfig.SCREEN_HEIGHT,
+            )
+            # If next position is forbidden or already occupied, try adjacent offsets
+            if nextPos in forbiddenPositions or nextPos in positions:
+                # Try orthogonal fallbacks
+                for odx, ody in directions:
+                    candidate = (
+                        (currentPos[0] - odx * GameConfig.GRID_SIZE) % GameConfig.SCREEN_WIDTH,
+                        (currentPos[1] - ody * GameConfig.GRID_SIZE) % GameConfig.SCREEN_HEIGHT,
+                    )
+                    if candidate not in forbiddenPositions and candidate not in positions:
+                        nextPos = candidate
+                        break
+            positions.append(nextPos)
+            currentPos = nextPos
+
+        return positions, direction
     
     def updateDirection(self, stonePositions: Optional[Set[Tuple[int, int]]] = None) -> None:
         """
@@ -331,20 +320,14 @@ class Snake(GameObject):
             RGB tuple representing the segment color
         """
         baseColor: Tuple[int, int, int] = GameConfig.SNAKE_COLOR
-        cycleLength: int = 10  # 5 cells darker + 5 cells lighter
-        
-        # Calculate position in the cycle
-        cyclePos: int = segmentIndex % cycleLength
-        
-        # Brightest at head (cyclePos 0), darkest at cyclePos 5
-        if cyclePos < 5:
-            # Getting darker: 100% to 60% brightness
-            brightness: float = 1.0 - (cyclePos * 0.08)
-        else:
-            # Getting lighter: 60% to 100% brightness
-            brightness: float = 0.6 + ((cyclePos - 5) * 0.08)
-        
-        # Apply brightness to color
+
+        # Use linear fade from head (bright) to tail (slightly dim), but
+        # avoid modulo cycles that make the last tail sporadically darker.
+        total: int = max(1, len(self.positions))
+        minBrightness: float = 0.6
+        # segmentIndex 0 -> brightness 1.0; segmentIndex (total-1) -> minBrightness
+        t: float = segmentIndex / max(1, total - 1)
+        brightness: float = 1.0 - t * (1.0 - minBrightness)
         return tuple(int(c * brightness) for c in baseColor)
     
     def updateAnimation(self, deltaTime: float, stonePosition: Optional[Tuple[int, int]] = None) -> None:
@@ -413,7 +396,7 @@ class Snake(GameObject):
             elif animType == 'twitch' and stonePosition:
                 # Twitch toward stone
                 progress = min(1.0, self.animationTimers[i] / GameConfig.TWITCH_ANIMATION_DURATION)
-                twitchAmount = 3.0 * (1.0 - abs(progress - 0.5) * 2.0)  # Peak at middle
+                twitchAmount = (GameConfig.GRID_SIZE * 0.15) * (1.0 - abs(progress - 0.5) * 2.0)  # Peak at middle
                 if self.twitchDirection:
                     twitchX = self.twitchDirection[0] * twitchAmount
                     twitchY = self.twitchDirection[1] * twitchAmount
@@ -502,9 +485,9 @@ class Snake(GameObject):
         headCenterX: int = int(headRenderPos[0]) + GameConfig.GRID_SIZE // 2
         headCenterY: int = int(headRenderPos[1]) + GameConfig.GRID_SIZE // 2
         
-        # Eye size and offset
-        eyeRadius: int = 3
-        eyeOffset: int = 4  # Distance from center
+        # Eye size and offset scale with grid size
+        eyeRadius: int = max(1, GameConfig.GRID_SIZE // 6)
+        eyeOffset: int = max(1, GameConfig.GRID_SIZE // 5)  # Distance from center
         
         dx, dy = self.direction
         
@@ -589,16 +572,7 @@ class Snake(GameObject):
         initialPosition: Tuple[int, int] = self.generateRandomStartPosition(
             forbiddenPositions
         )
-        self.positions = self.generateInitialBody(initialPosition, forbiddenPositions)
-        
-        # Random direction
-        directions: List[Tuple[int, int]] = [
-            GameConfig.UP,
-            GameConfig.DOWN,
-            GameConfig.LEFT,
-            GameConfig.RIGHT
-        ]
-        self.direction = choice(directions)
+        self.positions, self.direction = self.generateInitialBody(initialPosition, forbiddenPositions)
         self.nextDirection = None
         self.isAppleEaten = False
         self.isStopped = False

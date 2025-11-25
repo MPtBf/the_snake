@@ -80,6 +80,7 @@ class GameObject:
         screenRect: pg.Rect = self.screen.get_rect()
         tileSize = (GameConfig.GRID_SIZE, GameConfig.GRID_SIZE)
 
+        borderWidth = max(1, GameConfig.GRID_SIZE // 12)
         for offsetX in (-GameConfig.SCREEN_WIDTH, 0, GameConfig.SCREEN_WIDTH):
             for offsetY in (-GameConfig.SCREEN_HEIGHT, 0, GameConfig.SCREEN_HEIGHT):
                 drawPos = (position[0] + offsetX, position[1] + offsetY)
@@ -88,7 +89,7 @@ class GameObject:
                 if rect.colliderect(screenRect):
                     pg.draw.rect(self.screen, color, rect)
                     borderColor: Tuple[int, int, int] = GameConfig.getBorderColor(color)
-                    pg.draw.rect(self.screen, borderColor, rect, 1)
+                    pg.draw.rect(self.screen, borderColor, rect, borderWidth)
 
 
 class Apple(GameObject):
