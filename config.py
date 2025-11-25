@@ -32,10 +32,10 @@ class GameConfig:
     APPLE_COLOR: Tuple[int, int, int] = (255, 0, 0)
     SNAKE_COLOR: Tuple[int, int, int] = (0, 255, 0)
     STONE_COLOR: Tuple[int, int, int] = (128, 128, 128)  # Gray
-    EYE_COLOR: Tuple[int, int, int] = (0, 0, 0)  # Black
+    EYE_COLOR: Tuple[int, int, int] = (150, 0, 0)  # Black
     
     # Game speed (cells per second)
-    SPEED: float = 3.0  # 3 cells per second
+    SPEED: float = 3.0  # cells per second
     MAX_SPEED_MULTIPLIER: float = 3.0
     SPEED_ACCELERATION: float = 2.0  # multiplier per second while accelerating
     SPEED_DECELERATION: float = 1.5  # multiplier per second while slowing down
@@ -72,9 +72,9 @@ class GameConfig:
             color: RGB tuple representing the base color
             
         Returns:
-            RGB tuple representing a darker version of the color (67% brightness)
+            RGB tuple representing a darker version of the color
         """
-        return tuple(int(c * 0.67) for c in color)
+        return tuple(int(c * 0.8) for c in color)
     
     @staticmethod
     def getKeyToDirectionMapping() -> Dict[int, Tuple[int, int]]:

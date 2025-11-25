@@ -3,7 +3,7 @@ Snake Game - Main game file.
 A classic snake game implementation using Pygame.
 """
 
-from random import randint
+from random import randint, choice
 from typing import Tuple, Optional, List, Dict, Set
 
 import pygame as pg
@@ -27,11 +27,17 @@ class Game:
         """
         pg.init()
         
-        # Create game screen
-        self.screen: pg.Surface = pg.display.set_mode(
+        # Create resizable window (the actual display surface)
+        self.window: pg.Surface = pg.display.set_mode(
             (GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT),
-            0,
+            pg.RESIZABLE,
             32
+        )
+        # Create logical game surface (fixed size matching GameConfig).
+        # We render everything here and scale to `self.window` so the
+        # grid always fits and letterboxing is possible.
+        self.screen: pg.Surface = pg.Surface(
+            (GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT)
         )
         
         # Initialize data manager
@@ -47,11 +53,12 @@ class Game:
         # Initialize game clock for frame rate control
         self.clock: pg.time.Clock = pg.time.Clock()
         
-        # Generate stones first
+        # Generate stones first (they draw to logical `self.screen`)
         self.stones: List[Stone] = self.generateStones()
         self.stonePositions: Set[Tuple[int, int]] = self.getAllStonePositions()
-        
+
         # Create game objects (snake and apple need to avoid stones)
+        # Pass logical `self.screen` so all drawing happens on the fixed-size surface.
         self.snake: Snake = Snake(self.screen, self.stonePositions)
         self.apple: Apple = Apple(self.screen)
         self.apple.randomizePosition(
@@ -70,9 +77,15 @@ class Game:
         self.isGameOver: bool = False
         # Pause state: start paused so main menu/overlay is shown on load
         self.isPaused: bool = True
+        # Apple hint / spawn preview state
+        self.appleHintActive: bool = False
+        self.appleHintTimer: float = 0.0
+        self.appleHintSpawnInterval: float = 0.18
         self.gameOverReason: str = ""
         self.gameOverFont: pg.font.Font = pg.font.SysFont("arial", 42)
         self.subTextFont: pg.font.Font = pg.font.SysFont("arial", 24)
+        # Fullscreen toggle state
+        self.isFullscreen: bool = False
     
     def generateStones(self) -> List[Stone]:
         """
@@ -131,11 +144,26 @@ class Game:
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 return False
+            elif event.type == pg.VIDEORESIZE:
+                # Resize the window surface; the logical surface remains constant
+                self.window = pg.display.set_mode((event.w, event.h), pg.RESIZABLE)
+                continue
             
             elif event.type == pg.KEYDOWN:
                 # Open pause menu with ENTER
                 if event.key == pg.K_RETURN:
                     self.isPaused = True
+                    continue
+                # Toggle fullscreen with F11
+                if event.key == pg.K_F11:
+                    self.isFullscreen = not self.isFullscreen
+                    if self.isFullscreen:
+                        self.window = pg.display.set_mode((0, 0), pg.FULLSCREEN)
+                    else:
+                        self.window = pg.display.set_mode(
+                            (GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT), pg.RESIZABLE
+                        )
+                    continue
                     continue
 
                 # If paused, any key (except ESC) resumes the game
@@ -253,6 +281,29 @@ class Game:
             position[1] + GameConfig.GRID_SIZE / 2,
         )
 
+    def chooseRandomCell(
+        self,
+        forbiddenPositions: Optional[List[Tuple[int, int]]] = None,
+        stonePositions: Optional[Set[Tuple[int, int]]] = None,
+    ) -> Tuple[int, int]:
+        """
+        Helper to choose a random free grid cell (pixel coordinates).
+        """
+        if forbiddenPositions is None:
+            forbiddenPositions = []
+        if stonePositions is None:
+            stonePositions = set()
+
+        allCells: set = {
+            (x * GameConfig.GRID_SIZE, y * GameConfig.GRID_SIZE)
+            for x in range(GameConfig.GRID_WIDTH)
+            for y in range(GameConfig.GRID_HEIGHT)
+        }
+        available = list(allCells - set(forbiddenPositions) - stonePositions)
+        if not available:
+            return (GameConfig.SCREEN_WIDTH // 2, GameConfig.SCREEN_HEIGHT // 2)
+        return choice(available)
+
     @staticmethod
     def normalizeDirection(direction: Tuple[int, int]) -> Tuple[float, float]:
         """
@@ -363,6 +414,24 @@ class Game:
             shape="circle",
         )
         self.particles.emit(options)
+
+    def spawnAppleHintParticles(self, position: Tuple[int, int]) -> None:
+        """
+        Emit subtle particles at the hinted apple position to guide the player.
+        """
+        options = ParticleOptions(
+            position=self.getCellCenter(position),
+            amount=1,
+            color=GameConfig.APPLE_COLOR,
+            sizeRange=(1, 2),
+            lifetimeRange=(0.05, 0.15),
+            speedRange=(0.0, 10.0),
+            direction=(0.0, -1.0),
+            directionSpread=1.5,
+            spawnSpread=4.0,
+            shape="circle",
+        )
+        self.particles.emit(options)
     
     def spawnTrailParticles(
         self,
@@ -444,12 +513,24 @@ class Game:
         
         # Check if snake ate the apple
         if self.snake.getHeadPosition() == self.apple.position:
+            # Eat, spawn bite particles, and move apple to its nextPosition
             self.spawnAppleParticles(self.snake.getHeadPosition(), self.snake.direction)
             self.snake.eatApple()
-            self.apple.randomizePosition(
-                forbiddenPositions=self.snake.positions,
-                stonePositions=self.stonePositions
-            )
+            # Stop any hint particles
+            self.appleHintActive = False
+            self.appleHintTimer = 0.0
+            # If apple had a decided next position, commit it and start appearing
+            if getattr(self.apple, "nextPosition", None):
+                self.apple.position = self.apple.nextPosition
+                self.apple.nextPosition = None
+                self.apple.startAppearance()
+            else:
+                # Choose and immediately place new apple, then animate appearance
+                self.apple.randomizePosition(
+                    forbiddenPositions=self.snake.positions,
+                    stonePositions=self.stonePositions
+                )
+                self.apple.startAppearance()
         
         # Check for self-collision and cut tail instead of resetting
         collisionIndex: Optional[int] = self.snake.checkSelfCollision()
@@ -469,25 +550,73 @@ class Game:
         if self.lastMaxLength != self.maxLength:
             self.dataManager.saveMaxLength(self.maxLength)
             self.updateCaption()
+
+        # Apple hint logic: spawn preview particles when player is close
+        # Determine grid cell distance with wrapping
+        def cell_distance(a: Tuple[int, int], b: Tuple[int, int]) -> int:
+            ax, ay = a[0] // GameConfig.GRID_SIZE, a[1] // GameConfig.GRID_SIZE
+            bx, by = b[0] // GameConfig.GRID_SIZE, b[1] // GameConfig.GRID_SIZE
+            dx = min(abs(ax - bx), GameConfig.GRID_WIDTH - abs(ax - bx))
+            dy = min(abs(ay - by), GameConfig.GRID_HEIGHT - abs(ay - by))
+            return max(dx, dy)
+
+        headPos = self.snake.getHeadPosition()
+        dist = cell_distance(headPos, self.apple.position)
+        hintRadius = 5
+        if dist <= hintRadius:
+            if not self.appleHintActive:
+                # Decide next position and start hinting
+                self.apple.nextPosition = self.chooseRandomCell(
+                    forbiddenPositions=self.snake.positions,
+                    stonePositions=self.stonePositions,
+                )
+                self.appleHintActive = True
+                self.appleHintTimer = 0.0
+            else:
+                # While active, spawn hint particles at intervals
+                self.appleHintTimer += GameConfig.MOVE_ANIMATION_DURATION
+                # We'll use our own timer so that hints are visible even when
+                # not every frame triggers movements.
+                self.appleHintTimer += 0.0
+        else:
+            # Player moved away - disable hint
+            self.appleHintActive = False
+            self.appleHintTimer = 0.0
     
     def render(self) -> None:
         """
         Render all game objects to the screen.
         """
-        # Clear screen with background color
+        # Clear logical screen with background color
         self.screen.fill(GameConfig.BOARD_BACKGROUND_COLOR)
-        
+
         # Draw game objects (order matters for visual layering)
         for stone in self.stones:
             stone.draw()
         self.apple.draw()
         self.snake.draw()
+        # Draw particles on logical surface
         self.particles.draw(self.screen)
 
         if self.isGameOver:
             self.drawGameOverOverlay()
-        
-        # Update display
+
+        # If paused, draw pause overlay on logical surface
+        if self.isPaused and not self.isGameOver:
+            self.drawPauseOverlay()
+
+        # Scale logical surface to window while preserving aspect ratio
+        windowW, windowH = self.window.get_size()
+        scale = min(windowW / GameConfig.SCREEN_WIDTH, windowH / GameConfig.SCREEN_HEIGHT)
+        targetW = max(1, int(GameConfig.SCREEN_WIDTH * scale))
+        targetH = max(1, int(GameConfig.SCREEN_HEIGHT * scale))
+        scaled = pg.transform.smoothscale(self.screen, (targetW, targetH))
+
+        # Fill window background (letterbox areas)
+        self.window.fill((30, 30, 30))
+        offsetX = (windowW - targetW) // 2
+        offsetY = (windowH - targetH) // 2
+        self.window.blit(scaled, (offsetX, offsetY))
         pg.display.update()
 
     def drawGameOverOverlay(self) -> None:
@@ -598,6 +727,50 @@ class Game:
             # Update particles only while not paused (pause freezes visuals)
             if not self.isPaused:
                 self.particles.update(deltaTime)
+
+            # Only advance apple timers and hint logic when not paused / game over
+            if not self.isPaused and not self.isGameOver:
+                # Handle apple appearance timer
+                if getattr(self.apple, "isAppearing", False):
+                    self.apple.appearTimer += deltaTime
+                    if self.apple.appearTimer >= self.apple.appearDuration:
+                        self.apple.isAppearing = False
+                        self.apple.appearTimer = 0.0
+
+                # Apple hint proximity and particle spawning (per-frame)
+                # Compute cell distance with wrapping
+                def cell_distance(a: Tuple[int, int], b: Tuple[int, int]) -> int:
+                    ax, ay = a[0] // GameConfig.GRID_SIZE, a[1] // GameConfig.GRID_SIZE
+                    bx, by = b[0] // GameConfig.GRID_SIZE, b[1] // GameConfig.GRID_SIZE
+                    dx = min(abs(ax - bx), GameConfig.GRID_WIDTH - abs(ax - bx))
+                    dy = min(abs(ay - by), GameConfig.GRID_HEIGHT - abs(ay - by))
+                    return max(dx, dy)
+
+                headPos = self.snake.getHeadPosition()
+                dist = cell_distance(headPos, self.apple.position)
+                hintRadius = 5
+                if dist <= hintRadius:
+                    if not getattr(self.apple, "nextPosition", None):
+                        # decide next position for apple preview
+                        self.apple.decideNextPosition(
+                            forbiddenPositions=self.snake.positions,
+                            stonePositions=self.stonePositions,
+                        )
+                        self.appleHintActive = True
+                        self.appleHintTimer = 0.0
+                    # spawn hint particles periodically
+                    if self.appleHintActive:
+                        self.appleHintTimer += deltaTime
+                        if self.appleHintTimer >= self.appleHintSpawnInterval:
+                            self.appleHintTimer -= self.appleHintSpawnInterval
+                            if getattr(self.apple, "nextPosition", None):
+                                self.spawnAppleHintParticles(self.apple.nextPosition)
+                else:
+                    # left the radius: stop hinting and clear decided position
+                    self.appleHintActive = False
+                    self.appleHintTimer = 0.0
+                    # Clear nextPosition so it will be re-decided on next approach
+                    self.apple.nextPosition = None
 
             # Render everything every frame for smooth visuals
             self.render()

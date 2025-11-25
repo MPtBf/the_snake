@@ -105,6 +105,15 @@ class Apple(GameObject):
             screen: Pygame surface to draw on
         """
         super().__init__(GameConfig.APPLE_COLOR, screen=screen)
+        # Current visible apple position (pixel coords)
+        self.position = (0, 0)
+        # Next decided spawn position (preview) - pixel coords
+        self.nextPosition: Optional[Tuple[int, int]] = None
+        # Appearance animation state
+        self.isAppearing: bool = False
+        self.appearTimer: float = 0.0
+        self.appearDuration: float = 0.28
+        # Initial placement
         self.randomizePosition()
     
     def randomizePosition(
@@ -145,6 +154,39 @@ class Apple(GameObject):
         
         # Choose random position from available cells
         self.position = choice(tuple(availableCells))
+        # Reset any appearance animation
+        self.isAppearing = False
+        self.appearTimer = 0.0
+
+    def decideNextPosition(
+        self,
+        forbiddenPositions: Optional[List[Tuple[int, int]]] = None,
+        stonePositions: Optional[Set[Tuple[int, int]]] = None,
+    ) -> None:
+        """
+        Decide a next spawn position and store it in `nextPosition`.
+        Does not move the visible apple.
+        """
+        if forbiddenPositions is None:
+            forbiddenPositions = []
+        if stonePositions is None:
+            stonePositions = set()
+
+        allCells: set = {
+            (x * GameConfig.GRID_SIZE, y * GameConfig.GRID_SIZE)
+            for x in range(GameConfig.GRID_WIDTH)
+            for y in range(GameConfig.GRID_HEIGHT)
+        }
+        availableCells: set = allCells - set(forbiddenPositions) - stonePositions
+        if not availableCells:
+            self.nextPosition = (GameConfig.SCREEN_WIDTH // 2, GameConfig.SCREEN_HEIGHT // 2)
+            return
+        self.nextPosition = choice(tuple(availableCells))
+
+    def startAppearance(self) -> None:
+        """Animate the apple appearing (growing) at `self.position`."""
+        self.isAppearing = True
+        self.appearTimer = 0.0
     
     def draw(self) -> None:
         """
@@ -156,17 +198,25 @@ class Apple(GameObject):
         if self.bodyColor is None:
             raise ValueError("Color must be specified")
         
-        # Calculate center and radius for the circle
+        # Calculate center and animated radius for the circle
         centerX: int = self.position[0] + GameConfig.GRID_SIZE // 2
         centerY: int = self.position[1] + GameConfig.GRID_SIZE // 2
-        radius: int = GameConfig.GRID_SIZE // 2 - 2
-        
+
+        baseRadius = int(GameConfig.GRID_SIZE * 0.8 / 2)
+        drawRadius = baseRadius
+        if self.isAppearing:
+            # Advance timer (caller is responsible for updating appearTimer)
+            # Use ease-out scale for appearance
+            t = min(1.0, self.appearTimer / max(1e-6, self.appearDuration))
+            ease = 1.0 - (1.0 - t) ** 2
+            drawRadius = max(1, int(baseRadius * ease))
+
         # Draw filled circle
-        pg.draw.circle(self.screen, self.bodyColor, (centerX, centerY), radius)
-        
+        pg.draw.circle(self.screen, self.bodyColor, (centerX, centerY), drawRadius)
+
         # Draw border with darker color
         borderColor: Tuple[int, int, int] = GameConfig.getBorderColor(self.bodyColor)
-        pg.draw.circle(self.screen, borderColor, (centerX, centerY), radius, 1)
+        pg.draw.circle(self.screen, borderColor, (centerX, centerY), drawRadius, 1)
 
 
 class Stone(GameObject):

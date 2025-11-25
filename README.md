@@ -60,27 +60,25 @@ python the_snake.py
 The game saves your high score in `game_data.json` in the project directory.
 
 
-
 ## List of new game features
 
 - **Improve the snake**
+   - Fix snake spawn directions bug (head should be rotated in the save direction as a tail, but now it seems like tail and head directions are chosen independently of each other)
    - Come up with new ideas
 
-- **Add particles**
-   - Add tail disappearing particles
-
 - **Add smooth animations and other visuals**
+   - Last tail segment is getting darker on move, but it should not
+   - Last tail segment is flying through the entire fiend, but it should not. It should move on edges like head segment.
+   - Snake looses its eyes when wrapping around edges.
+
+   - Snake tail segments are drawn on top of the head segment, but snake head should have bigger z-index. Also snake movement particles should have smaller z-index than the snake.
    - Twitch animation when colliding with stones
    - Animated tail shrinking when hitting stones
    - Animated tail growth when eating apples
-   - Animated apple appearance/disappearance
    - Field edges wrap visibility to gain more control
-   - Fix snake smooth movement animation (snake body tiles are not moving except of head and last tail tile)
-   - Last tail segment is getting darker on move, but it should not
-   - Last tail segment is flying through the entire fiend, but it should not. It should move on edges like head segment.
-   - Snake loses its eyes when wrapping around edges.
-   - Pause menu sometimes blinks (dissapearing and quickly appearing again)
-   - Snake tail segments are drawn on top of the head segment, but snake head should have bigger z-index.
+
+- **Add particles**
+   - Add tail disappearing particles
 
 ### Game Features
 
@@ -107,10 +105,10 @@ The game saves your high score in `game_data.json` in the project directory.
    - Online multiplayer support
 
 
-## Recent Changes
+## New Features and recent changes (window resize, apple hints, improved animation)
 
-- **Smoother Snake Animation**: The snake head and body now interpolate between grid cells for noticeably smoother movement (fixed jerky teleport). Implemented in `snake.py` by setting the new head render position to the previous render position and animating it toward the new cell.
+- **Resizable / Fullscreen Window**: The game now supports window resizing and fullscreen (F11). Internally the game renders to a fixed logical surface sized to the game's grid and then scales that surface to the window while preserving aspect ratio. If the window aspect doesn't match the game field, dark letterbox bars remain visible so the entire field is always shown.
 
-- **Pause Menu**: Added a pause overlay that appears on game load and when pressing `Enter`. Resume by pressing any key. Implemented in `the_snake.py` with a new `isPaused` state and `drawPauseOverlay` method.
+- **Apple Hint & Appearance Animation**: When the player gets close to the apple (within 5 cells), the apple decides a new spawn location and subtle particles spawn at that location as a hint. If the player moves away (more than 5 cells) the hint stops. If the player eats the apple, the apple reappears at the decided position with a smooth grow animation. The apple is drawn at 0.8 of a tile size.
 
-These changes improve visual polish and provide a simple pause/start screen for the player.
+- **Full-Body Smooth Movement**: All snake segments now animate smoothly between logical cells, including correct wrapping behavior (segments use the shortest wrapped path across edges). This fixes abrupt teleporting or segments flying across the entire field when crossing edges.
