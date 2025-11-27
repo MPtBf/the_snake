@@ -338,15 +338,24 @@ class Snake(GameObject):
             deltaTime: Time elapsed since last frame
             stonePosition: Position of stone if colliding (for twitch animation)
         """
-        # Update shrinking segments
+        # Update shrinking segments with wrapping-aware interpolation
         aliveShrinking: List[Tuple[Tuple[float, float], float, Tuple[int, int]]] = []
         for renderPos, timer, targetPos in self.shrinkingSegments:
             timer += deltaTime
             progress = min(1.0, timer / GameConfig.TAIL_SHRINK_ANIMATION_DURATION)
             targetFloat = (float(targetPos[0]), float(targetPos[1]))
+            
+            # Compute delta with wrapping awareness
+            dx = targetFloat[0] - renderPos[0]
+            dy = targetFloat[1] - renderPos[1]
+            if abs(dx) > GameConfig.SCREEN_WIDTH / 2:
+                dx = dx - GameConfig.SCREEN_WIDTH if dx > 0 else dx + GameConfig.SCREEN_WIDTH
+            if abs(dy) > GameConfig.SCREEN_HEIGHT / 2:
+                dy = dy - GameConfig.SCREEN_HEIGHT if dy > 0 else dy + GameConfig.SCREEN_HEIGHT
+            
             newRenderPos = (
-                renderPos[0] + (targetFloat[0] - renderPos[0]) * progress,
-                renderPos[1] + (targetFloat[1] - renderPos[1]) * progress
+                renderPos[0] + dx * progress,
+                renderPos[1] + dy * progress
             )
             if progress < 1.0:
                 aliveShrinking.append((newRenderPos, timer, targetPos))
@@ -459,11 +468,12 @@ class Snake(GameObject):
             segmentColor: Tuple[int, int, int] = self.getSegmentColor(index)
             self.drawSingleTile(renderPos, segmentColor)
         
-        # Draw shrinking tail segments
-        for renderPos, timer, _ in self.shrinkingSegments:
+        # Draw shrinking tail segments with consistent coloring
+        for renderPos, timer, targetPos in self.shrinkingSegments:
             progress = min(1.0, timer / GameConfig.TAIL_SHRINK_ANIMATION_DURATION)
             fade = 1.0 - progress
-            tailColor = self.getSegmentColor(len(self.positions) - 1) if len(self.positions) > 0 else GameConfig.SNAKE_COLOR
+            # Use a constant color for shrinking segments (slightly dim tail color)
+            tailColor = tuple(int(c * 0.7) for c in GameConfig.SNAKE_COLOR)
             fadedColor = tuple(int(c * fade) for c in tailColor)
             pos = (int(renderPos[0]), int(renderPos[1]))
             self.drawSingleTile(pos, fadedColor)

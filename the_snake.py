@@ -619,12 +619,21 @@ class Game:
         if self.isPaused and not self.isGameOver:
             self.drawPauseOverlay()
 
-        # Scale logical surface to window while preserving aspect ratio
+        # Scale logical surface to window preserving aspect ratio with high-quality scaling
         windowW, windowH = self.window.get_size()
         scale = min(windowW / GameConfig.SCREEN_WIDTH, windowH / GameConfig.SCREEN_HEIGHT)
         targetW = max(1, int(GameConfig.SCREEN_WIDTH * scale))
         targetH = max(1, int(GameConfig.SCREEN_HEIGHT * scale))
-        scaled = pg.transform.smoothscale(self.screen, (targetW, targetH))
+        
+        # Use high-quality scaling to prevent pixelation:
+        # If upscaling, scale to integer multiple first (crisp), then smoothscale to exact size
+        if scale >= 1.0:
+            intScale = int(scale)
+            upscaled = pg.transform.scale(self.screen, (GameConfig.SCREEN_WIDTH * intScale, GameConfig.SCREEN_HEIGHT * intScale))
+            scaled = pg.transform.smoothscale(upscaled, (targetW, targetH))
+        else:
+            # For downscaling, use smoothscale directly
+            scaled = pg.transform.smoothscale(self.screen, (targetW, targetH))
 
         # Fill window background (letterbox areas)
         self.window.fill((30, 30, 30))

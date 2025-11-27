@@ -53,10 +53,10 @@ class GameConfig:
     MIN_STONE_DISTANCE: int = 5  # Minimum distance between stones in cells
     
     # Animation settings (durations are in seconds)
-    MOVE_ANIMATION_DURATION: float = 0.15  # Duration of quick movement animation
-    TWITCH_ANIMATION_DURATION: float = 0.1  # Duration of stone collision twitch
-    TAIL_SHRINK_ANIMATION_DURATION: float = 0.2  # Duration of tail shrinking animation
-    GROW_ANIMATION_DURATION: float = 0.2  # Duration of growth animation
+    MOVE_ANIMATION_DURATION: float = 1.5  # Duration of quick movement animation
+    TWITCH_ANIMATION_DURATION: float = 0.4  # Duration of stone collision twitch
+    TAIL_SHRINK_ANIMATION_DURATION: float = 0.8  # Duration of tail shrinking animation
+    GROW_ANIMATION_DURATION: float = 0.8  # Duration of growth animation
     
     # Game title
     GAME_TITLE: str = 'Snake!'

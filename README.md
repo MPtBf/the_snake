@@ -94,8 +94,6 @@ The game saves your high score in `game_data.json` in the project directory.
 
 - **Add textures maybe?**
    - Replace solid colors with sprite textures
-   - Animated snake skin textures
-   - Themed visual styles (nature, space, etc.)
 
 - **Add multiplayer maybe?**
    - Local "multiplayer" with other snakes (bots)
