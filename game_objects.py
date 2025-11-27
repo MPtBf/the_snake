@@ -5,7 +5,7 @@ Game objects: base class, apple, and stone.
 from random import choice, randint, random
 from typing import Tuple, Optional, List, Set
 import pygame as pg
-from config import GameConfig
+from config import GameConfig, RenderDebug
 
 
 class GameObject:

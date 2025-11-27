@@ -5,8 +5,9 @@ Snake class implementation.
 from random import choice
 from typing import Tuple, Optional, List, Set
 import pygame as pg
-from config import GameConfig
+from config import GameConfig, RenderDebug
 from game_objects import GameObject
+
 
 
 class Snake(GameObject):
@@ -338,6 +339,7 @@ class Snake(GameObject):
             deltaTime: Time elapsed since last frame
             stonePosition: Position of stone if colliding (for twitch animation)
         """
+
         # Update shrinking segments with wrapping-aware interpolation
         aliveShrinking: List[Tuple[Tuple[float, float], float, Tuple[int, int]]] = []
         for renderPos, timer, targetPos in self.shrinkingSegments:
@@ -417,7 +419,6 @@ class Snake(GameObject):
                     self.animationTypes[i] = 'idle'
                     self.renderPositions[i] = targetPos
                     
-                    
             elif animType == 'grow':
                 # New segment grows from previous tail position
                 progress = min(1.0, self.animationTimers[i] / GameConfig.GROW_ANIMATION_DURATION)
@@ -456,64 +457,106 @@ class Snake(GameObject):
     
     def draw(self) -> None:
         """
-        Draw the entire snake by drawing each segment with gradient colors.
+        Draw the snake body segments (called from main render).
         Uses interpolated positions for smooth animation.
-        Draws eyes on the head.
         """
+        if not RenderDebug.ENABLE_SNAKE_BODY:
+            return
+        
         # Draw body segments with gradient colors using render positions
         # Draw up to min of positions and renderPositions (in case of shrink animation)
         drawCount = min(len(self.positions), len(self.renderPositions))
         for index in range(drawCount):
             renderPos = (int(self.renderPositions[index][0]), int(self.renderPositions[index][1]))
-            segmentColor: Tuple[int, int, int] = self.getSegmentColor(index)
+            if RenderDebug.ENABLE_BODY_GRADIENT:
+                segmentColor: Tuple[int, int, int] = self.getSegmentColor(index)
+            else:
+                segmentColor = GameConfig.SNAKE_COLOR
             self.drawSingleTile(renderPos, segmentColor)
         
         # Draw shrinking tail segments with consistent coloring
-        for renderPos, timer, targetPos in self.shrinkingSegments:
-            progress = min(1.0, timer / GameConfig.TAIL_SHRINK_ANIMATION_DURATION)
-            fade = 1.0 - progress
-            # Use a constant color for shrinking segments (slightly dim tail color)
-            tailColor = tuple(int(c * 0.7) for c in GameConfig.SNAKE_COLOR)
-            fadedColor = tuple(int(c * fade) for c in tailColor)
-            pos = (int(renderPos[0]), int(renderPos[1]))
-            self.drawSingleTile(pos, fadedColor)
+        if RenderDebug.ENABLE_SHRINKING_ANIMATION:
+            for renderPos, timer, targetPos in self.shrinkingSegments:
+                progress = min(1.0, timer / GameConfig.TAIL_SHRINK_ANIMATION_DURATION)
+                fade = 1.0 - progress
+                # Use a constant color for shrinking segments (slightly dim tail color)
+                tailColor = tuple(int(c * 0.7) for c in GameConfig.SNAKE_COLOR)
+                fadedColor = tuple(int(c * fade) for c in tailColor)
+                pos = (int(renderPos[0]), int(renderPos[1]))
+                self.drawSingleTile(pos, fadedColor)
+    
+    def drawHead(self) -> None:
+        """
+        Draw the snake head and eyes (called after body for proper z-ordering).
+        """
+        if not RenderDebug.ENABLE_SNAKE_BODY:
+            return
+        
+        # Draw head segment with brightest color
+        if len(self.positions) > 0 and len(self.renderPositions) > 0:
+            headRenderPos = (int(self.renderPositions[0][0]), int(self.renderPositions[0][1]))
+            headColor: Tuple[int, int, int] = GameConfig.SNAKE_COLOR
+            self.drawSingleTile(headRenderPos, headColor)
         
         # Draw eyes on the head
-        self.drawEyes()
+        if RenderDebug.ENABLE_SNAKE_EYES:
+            self.drawEyes()
     
     def drawEyes(self) -> None:
         """
         Draw two black circles (eyes) on the front side of the snake's head.
         Eyes are positioned based on the snake's direction.
-        Uses interpolated head position for animation.
+        Uses interpolated head position for animation with wrapping awareness.
         """
         if self.screen is None or len(self.positions) == 0 or len(self.renderPositions) == 0:
             return
         
-        # Use render position for head
+        # Get the actual logical head position and animated render position
+        logicalHeadPos = self.positions[0]
         headRenderPos = self.renderPositions[0]
-        headCenterX: int = int(headRenderPos[0]) + GameConfig.GRID_SIZE // 2
-        headCenterY: int = int(headRenderPos[1]) + GameConfig.GRID_SIZE // 2
+        
+        # Apply wrapping adjustment to render position so it stays with logical position
+        headCenterX_raw = headRenderPos[0] + GameConfig.GRID_SIZE // 2
+        headCenterY_raw = headRenderPos[1] + GameConfig.GRID_SIZE // 2
+        
+        # Adjust render position for wrapping: if the logical and rendered positions
+        # are far apart (indicating a wrap), adjust the render position to be closest
+        logicalCenterX = logicalHeadPos[0] + GameConfig.GRID_SIZE // 2
+        logicalCenterY = logicalHeadPos[1] + GameConfig.GRID_SIZE // 2
+        
+        # Wrap-aware adjustment for X
+        dx = headCenterX_raw - logicalCenterX
+        if abs(dx) > GameConfig.SCREEN_WIDTH / 2:
+            headCenterX = headCenterX_raw - GameConfig.SCREEN_WIDTH if dx > 0 else headCenterX_raw + GameConfig.SCREEN_WIDTH
+        else:
+            headCenterX = int(headCenterX_raw)
+        
+        # Wrap-aware adjustment for Y
+        dy = headCenterY_raw - logicalCenterY
+        if abs(dy) > GameConfig.SCREEN_HEIGHT / 2:
+            headCenterY = headCenterY_raw - GameConfig.SCREEN_HEIGHT if dy > 0 else headCenterY_raw + GameConfig.SCREEN_HEIGHT
+        else:
+            headCenterY = int(headCenterY_raw)
         
         # Eye size and offset scale with grid size
         eyeRadius: int = max(1, GameConfig.GRID_SIZE // 6)
         eyeOffset: int = max(1, GameConfig.GRID_SIZE // 5)  # Distance from center
         
-        dx, dy = self.direction
+        dx_dir, dy_dir = self.direction
         
         # Calculate eye positions based on direction
         # Eyes are on the front side of the head
-        if dx == 1:  # Moving right
+        if dx_dir == 1:  # Moving right
             eye1X: int = headCenterX + eyeOffset
             eye1Y: int = headCenterY - eyeOffset
             eye2X: int = headCenterX + eyeOffset
             eye2Y: int = headCenterY + eyeOffset
-        elif dx == -1:  # Moving left
+        elif dx_dir == -1:  # Moving left
             eye1X: int = headCenterX - eyeOffset
             eye1Y: int = headCenterY - eyeOffset
             eye2X: int = headCenterX - eyeOffset
             eye2Y: int = headCenterY + eyeOffset
-        elif dy == -1:  # Moving up
+        elif dy_dir == -1:  # Moving up
             eye1X: int = headCenterX - eyeOffset
             eye1Y: int = headCenterY - eyeOffset
             eye2X: int = headCenterX + eyeOffset
@@ -527,6 +570,7 @@ class Snake(GameObject):
         # Draw eyes
         pg.draw.circle(self.screen, GameConfig.EYE_COLOR, (eye1X, eye1Y), eyeRadius)
         pg.draw.circle(self.screen, GameConfig.EYE_COLOR, (eye2X, eye2Y), eyeRadius)
+
     
     def getHeadPosition(self) -> Tuple[int, int]:
         """

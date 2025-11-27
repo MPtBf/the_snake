@@ -64,6 +64,13 @@ class GameConfig:
     # Data file for saving high scores
     DATA_FILE: str = 'game_data.json'
     
+    # Z-index layer settings for rendering priority (lower = drawn first)
+    PARTICLE_Z_INDEX: int = 0
+    STONE_Z_INDEX: int = 1
+    APPLE_Z_INDEX: int = 2
+    SNAKE_BODY_Z_INDEX: int = 3
+    SNAKE_HEAD_Z_INDEX: int = 4
+    
     @staticmethod
     def getBorderColor(color: Tuple[int, int, int]) -> Tuple[int, int, int]:
         """
@@ -98,3 +105,22 @@ class GameConfig:
             pg.K_a: GameConfig.LEFT,
         }
 
+
+class RenderDebug:
+    """
+    Debug flags to toggle rendering features on/off for debugging purposes.
+    Set any flag to False to disable that feature's rendering.
+    """
+    # Core gameplay features
+    ENABLE_PARTICLES: bool = False
+    ENABLE_SNAKE_BODY: bool = True
+    ENABLE_SNAKE_EYES: bool = True
+    ENABLE_SNAKE_ANIMATION: bool = False
+    ENABLE_BODY_GRADIENT: bool = False  # If False, all segments use same color
+    ENABLE_STONES: bool = True
+    ENABLE_APPLE: bool = True
+    ENABLE_APPLE_HINT: bool = True
+    
+    # Visual effects
+    ENABLE_SHRINKING_ANIMATION: bool = True
+    ENABLE_GROWTH_ANIMATION: bool = True

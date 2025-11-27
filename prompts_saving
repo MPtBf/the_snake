@@ -1,2 +1,0 @@
-1. Snake looses its eyes when wrapping around edges - if snake wraps from one edge to another, its eyes are disappearing. May be its happening because of head move animation makes another head going from opposite edge and eyes remain on old head. Fix it.
-2. Snake tail segments are drawn on top of the head segment, but snake head should have bigger z-index. Also snake movement particles should have smaller z-index than the snake.

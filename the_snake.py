@@ -8,7 +8,7 @@ from typing import Tuple, Optional, List, Dict, Set
 
 import pygame as pg
 
-from config import GameConfig
+from config import GameConfig, RenderDebug
 from game_data import GameDataManager
 from game_objects import Apple, Stone
 from particles import ParticleOptions, ParticleSystem
@@ -326,6 +326,8 @@ class Game:
         Emit gray particles when the snake collides with a stone.
         Particles fly from stone to snake head.
         """
+        if not RenderDebug.ENABLE_PARTICLES:
+            return
 
         # Calculate direction from stone to snake head
         direction = self.calculateDirection(stonePosition, snakeHeadPosition)
@@ -377,6 +379,8 @@ class Game:
         """
         Emit dark green particles when the snake collides with itself.
         """
+        if not RenderDebug.ENABLE_PARTICLES:
+            return
 
         # Self-collision tail particles (use smaller sizes scaled to grid)
         sizeMin = max(1, int(GameConfig.GRID_SIZE * 0.06))
@@ -404,6 +408,9 @@ class Game:
         Emit red particles when the snake eats an apple.
         Particles fly out faster than snake speed.
         """
+        if not RenderDebug.ENABLE_PARTICLES:
+            return
+        
         # Calculate base speed relative to snake speed (faster)
         baseSpeed = GameConfig.SPEED * GameConfig.GRID_SIZE * self.speedMultiplier
         particleSpeed = baseSpeed * 1.5  # 1.5x faster than snake
@@ -429,6 +436,8 @@ class Game:
         """
         Emit subtle particles at the hinted apple position to guide the player.
         """
+        if not RenderDebug.ENABLE_PARTICLES or not RenderDebug.ENABLE_APPLE_HINT:
+            return
         sizeMin = max(1, int(GameConfig.GRID_SIZE * 0.06))
         sizeMax = max(1, int(GameConfig.GRID_SIZE * 0.14))
         options = ParticleOptions(
@@ -453,6 +462,9 @@ class Game:
         Emit yellow trail particles behind the snake tail.
         Only spawns when tail moves (not when growing).
         """
+        if not RenderDebug.ENABLE_PARTICLES:
+            return
+        
         from random import uniform
         
         sizeMin = max(1, int(GameConfig.GRID_SIZE * 0.04))
@@ -599,18 +611,35 @@ class Game:
     
     def render(self) -> None:
         """
-        Render all game objects to the screen.
+        Render all game objects to the screen using z-index based layering.
+        Lower z-index values are drawn first (background), higher values on top.
         """
         # Clear logical screen with background color
         self.screen.fill(GameConfig.BOARD_BACKGROUND_COLOR)
 
-        # Draw game objects (order matters for visual layering)
-        for stone in self.stones:
-            stone.draw()
-        self.apple.draw()
-        self.snake.draw()
-        # Draw particles on logical surface
-        self.particles.draw(self.screen)
+        # Draw game objects by z-index for proper layering
+        # Z-index order: particles < stones < apple < snake_body < snake_head
+        
+        # Particles (lowest z-index)
+        if RenderDebug.ENABLE_PARTICLES:
+            self.particles.draw(self.screen)
+        
+        # Stones
+        if RenderDebug.ENABLE_STONES:
+            for stone in self.stones:
+                stone.draw()
+        
+        # Apple
+        if RenderDebug.ENABLE_APPLE:
+            self.apple.draw()
+        
+        # Snake body (drawn before head so head is on top)
+        if RenderDebug.ENABLE_SNAKE_BODY:
+            self.snake.draw()
+        
+        # Snake head (highest z-index for snake elements)
+        if RenderDebug.ENABLE_SNAKE_BODY:
+            self.snake.drawHead()
 
         if self.isGameOver:
             self.drawGameOverOverlay()
@@ -786,7 +815,7 @@ class Game:
                         self.appleHintTimer += deltaTime
                         if self.appleHintTimer >= self.appleHintSpawnInterval:
                             self.appleHintTimer -= self.appleHintSpawnInterval
-                            if getattr(self.apple, "nextPosition", None):
+                            if getattr(self.apple, "nextPosition", None) and RenderDebug.ENABLE_APPLE_HINT:
                                 self.spawnAppleHintParticles(self.apple.nextPosition)
                 else:
                     # left the radius: stop hinting and clear decided position
