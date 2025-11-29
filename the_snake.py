@@ -39,6 +39,8 @@ class Game:
         self.screen: pg.Surface = pg.Surface(
             (GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT)
         )
+        # Track initial window size for later calculations
+        self.lastWindowSize: Tuple[int, int] = self.window.get_size()
         
         # Initialize data manager
         self.dataManager: GameDataManager = GameDataManager()
@@ -145,8 +147,37 @@ class Game:
             if event.type == pg.QUIT:
                 return False
             elif event.type == pg.VIDEORESIZE:
-                # Resize the window surface; the logical surface remains constant
-                self.window = pg.display.set_mode((event.w, event.h), pg.RESIZABLE)
+                # On window resize, recalculate GRID_SIZE based on new window dimensions
+                # Keep GRID_WIDTH and GRID_HEIGHT constant, only GRID_SIZE changes
+                newWidth = event.w
+                newHeight = event.h
+                
+                # Calculate new grid size based on fitting the fixed tile count to window
+                newGridSizeX = max(1, newWidth // GameConfig.GRID_WIDTH)
+                newGridSizeY = max(1, newHeight // GameConfig.GRID_HEIGHT)
+                # Use the minimum to maintain aspect ratio
+                newGridSize = min(newGridSizeX, newGridSizeY)
+                
+                # Update GRID_SIZE in GameConfig
+                GameConfig.GRID_SIZE = newGridSize
+                GameConfig.SCREEN_WIDTH = GameConfig.GRID_SIZE * GameConfig.GRID_WIDTH
+                GameConfig.SCREEN_HEIGHT = GameConfig.GRID_SIZE * GameConfig.GRID_HEIGHT
+                
+                # Recreate logical surface with new size
+                self.screen = pg.Surface((GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT))
+                
+                # Update all game objects to use new screen surface
+                self.snake.setScreen(self.screen)
+                self.apple.setScreen(self.screen)
+                for stone in self.stones:
+                    stone.setScreen(self.screen)
+                
+                # Resize window to match new logical surface dimensions
+                self.window = pg.display.set_mode(
+                    (GameConfig.SCREEN_WIDTH, GameConfig.SCREEN_HEIGHT),
+                    pg.RESIZABLE
+                )
+                self.lastWindowSize = self.window.get_size()
                 continue
             
             elif event.type == pg.KEYDOWN:
@@ -611,8 +642,8 @@ class Game:
     
     def render(self) -> None:
         """
-        Render all game objects to the screen using z-index based layering.
-        Lower z-index values are drawn first (background), higher values on top.
+        Render all game objects to the screen.
+        Logical surface size now matches window size, so no scaling is needed.
         """
         # Clear logical screen with background color
         self.screen.fill(GameConfig.BOARD_BACKGROUND_COLOR)
@@ -648,27 +679,8 @@ class Game:
         if self.isPaused and not self.isGameOver:
             self.drawPauseOverlay()
 
-        # Scale logical surface to window preserving aspect ratio with high-quality scaling
-        windowW, windowH = self.window.get_size()
-        scale = min(windowW / GameConfig.SCREEN_WIDTH, windowH / GameConfig.SCREEN_HEIGHT)
-        targetW = max(1, int(GameConfig.SCREEN_WIDTH * scale))
-        targetH = max(1, int(GameConfig.SCREEN_HEIGHT * scale))
-        
-        # Use high-quality scaling to prevent pixelation:
-        # If upscaling, scale to integer multiple first (crisp), then smoothscale to exact size
-        if scale >= 1.0:
-            intScale = int(scale)
-            upscaled = pg.transform.scale(self.screen, (GameConfig.SCREEN_WIDTH * intScale, GameConfig.SCREEN_HEIGHT * intScale))
-            scaled = pg.transform.smoothscale(upscaled, (targetW, targetH))
-        else:
-            # For downscaling, use smoothscale directly
-            scaled = pg.transform.smoothscale(self.screen, (targetW, targetH))
-
-        # Fill window background (letterbox areas)
-        self.window.fill((30, 30, 30))
-        offsetX = (windowW - targetW) // 2
-        offsetY = (windowH - targetH) // 2
-        self.window.blit(scaled, (offsetX, offsetY))
+        # Blit logical surface directly to window (no scaling needed)
+        self.window.blit(self.screen, (0, 0))
         pg.display.update()
 
     def drawGameOverOverlay(self) -> None:
