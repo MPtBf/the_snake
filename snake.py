@@ -339,6 +339,14 @@ class Snake(GameObject):
             deltaTime: Time elapsed since last frame
             stonePosition: Position of stone if colliding (for twitch animation)
         """
+        # If animation is disabled, snap all positions to their targets and return early
+        if not RenderDebug.ENABLE_SNAKE_ANIMATION:
+            for i in range(len(self.positions)):
+                self.renderPositions[i] = (float(self.positions[i][0]), float(self.positions[i][1]))
+                self.animationTypes[i] = 'idle'
+                self.animationTimers[i] = 0.0
+            self.shrinkingSegments.clear()
+            return
 
         # Update shrinking segments with wrapping-aware interpolation
         aliveShrinking: List[Tuple[Tuple[float, float], float, Tuple[int, int]]] = []
